@@ -763,25 +763,19 @@ static void key_core(int k, int down, int repeat);
    and released (held on a card: its menu); a few targets act on release (a tab, a chip, the seek bar, beside a
    sheet = close it); a sheet's body absorbs a click. A click and an OK key within 150 ms are one press. The
    wheel is Up/Down, one step per notch (70 ms apart at most). An arrow key puts the pointer away; it comes
-   back only with a deliberate movement: nothing in the first 350 ms, then 64 px in one gesture.
-   Idle and arrow mode ignore show notices: a transparent image alone must not leave an active pointer behind. */
+   back only when the wheel turns. Movement and show notices never release the idle/arrow lock. */
 #define PTR_SETTLE 0.15
 #define PTR_DEDUPE 0.15
 #define PTR_WHEEL 0.07
-#define PTR_ARROW_WIN 0.35
-#define PTR_ARROW_DIST 64
-#define PTR_ARROW_PAUSE 0.3
 #define PTR_IDLE_S 3.0
-static struct { int on; float x, y; Hit hv; int hasHv; float hx, hy; double movedAt; int down, downAct; Hit act; double okKeyAt, clickAt, wheelAt; int eatUp, eatOk, arrowHid; double arrowAt; int anchor; float ax, ay; double tremAt; int dirty; double usedAt; int suspended; } PTR;
-static void ptr_show(void) { PTR.arrowHid = 0; if (PTR.on) return; PTR.on = 1; PTR.hasHv = 0; PTR.usedAt = NOW; plat_pointer_image(1); }
+static struct { int on; float x, y; Hit hv; int hasHv; float hx, hy; double movedAt; int down, downAct; Hit act; double okKeyAt, clickAt, wheelAt; int eatUp, eatOk, wheelLocked; int dirty; double usedAt; int suspended; } PTR;
+static void ptr_show(void) { PTR.wheelLocked = 0; if (PTR.on) return; PTR.on = 1; PTR.hasHv = 0; PTR.usedAt = NOW; plat_pointer_image(1); }
 static void ptr_hide(void) {
   if (PTR.suspended) return;
   PTR.on = 0; PTR.hasHv = 0; PTR.dirty = 0;
-  PTR.arrowHid = 1; PTR.arrowAt = NOW; PTR.anchor = 0;
+  PTR.wheelLocked = 1;
   plat_pointer_image(0);
 }
-static int ptr_tremor(double now) { if (!PTR.arrowHid) return 0; if (now - PTR.arrowAt < PTR_ARROW_WIN) return 1;
-  if (!PTR.anchor || now - PTR.tremAt > PTR_ARROW_PAUSE) { PTR.anchor = 1; PTR.ax = PTR.x; PTR.ay = PTR.y; } PTR.tremAt = now; float dx = PTR.x - PTR.ax, dy = PTR.y - PTR.ay; return dx * dx + dy * dy < PTR_ARROW_DIST * PTR_ARROW_DIST; }
 static void ptr_nav_back(void) { if (topNav.want >= 0) return; Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; for (int j = 2; j < 5; j++) if (chipScr(j) == cur && topNav.idx != j) { topNav.idx = j; topnav_paint(); } }
 static void ptr_keep(const Hit *h) { PTR.hv = *h; PTR.hasHv = 1; PTR.hx = h->x + h->w / 2; PTR.hy = h->y + h->h / 2; }
 /* the brake: the element the pointer last focused moved (a slide, a scroll) or went away -> note when */
@@ -801,7 +795,7 @@ static void ptr_frame(void) {
   if (!d || !d->focus || (PTR.hasHv && hit_same(d, &PTR.hv))) return;
   if (PTR.movedAt && now - PTR.movedAt < PTR_SETTLE) { PTR.dirty = 1; return; } /* the page is still moving under the pointer */
   d->focus(d->a, d->b); ptr_keep(d); }
-void app_pointer_move(float x, float y) { if (PTR.suspended || (PTR.on && x == PTR.x && y == PTR.y)) return; PTR.x = x; PTR.y = y; if (ptr_tremor(NOW)) return; ptr_show(); PTR.usedAt = NOW; idle_touch_by("pointer moved"); PTR.dirty = 1; }
+void app_pointer_move(float x, float y) { if (PTR.suspended || (PTR.on && x == PTR.x && y == PTR.y)) return; PTR.x = x; PTR.y = y; if (PTR.wheelLocked) return; ptr_show(); PTR.usedAt = NOW; idle_touch_by("pointer moved"); PTR.dirty = 1; }
 void app_pointer_button(int down, float x, float y) {
   if (PTR.suspended) return;
   double now = NOW; PTR.x = x; PTR.y = y; PTR.usedAt = now;
@@ -809,7 +803,7 @@ void app_pointer_button(int down, float x, float y) {
   if (down) { idle_touch();
     if (PTR.okKeyAt && now - PTR.okKeyAt < PTR_DEDUPE) { PTR.eatUp = 1; return; } /* the OK key of this same press came first */
     PTR.clickAt = now;
-    if (PTR.arrowHid) { PTR.down = 1; key_core(K_OK, 1, 0); return; } /* inactive pointer: confirm the keyboard focus */
+    if (PTR.wheelLocked) { PTR.down = 1; key_core(K_OK, 1, 0); return; } /* inactive pointer: confirm the keyboard focus */
     ptr_show();
     if (player_open()) { extern void player_ptr(int type, float x, float y); PTR.down = 2; player_ptr(1, x, y); return; }
     const Hit *d = hit_at(x, y); if (!d) return;
@@ -823,19 +817,20 @@ void app_pointer_button(int down, float x, float y) {
   if (dn == 1) { key_core(K_OK, 0, 0); return; }
   const Hit *d = hit_at(x, y); if (d && hit_same(d, &PTR.act)) PTR.act.act(PTR.act.a, PTR.act.b); /* released on it: its own action */
 }
-/* the wheel = the Up/Down arrows (Left/Right for a sideways wheel), one per notch; it leaves the pointer out */
-void app_pointer_wheel(float dx, float dy) { double now = NOW; if (PTR.suspended || saver_on()) return; if (now - PTR.wheelAt < PTR_WHEEL || (!dx && !dy)) return; PTR.wheelAt = now; PTR.usedAt = now; idle_touch(); int k = dy > 0 ? K_UP : dy < 0 ? K_DOWN : dx > 0 ? K_RIGHT : K_LEFT; key_core(app_mirror_key(k), 1, 0); key_core(k, 0, 0); }
+/* The first wheel notch wakes the pointer; later notches keep the original arrow navigation. */
+void app_pointer_wheel(float dx, float dy) { double now = NOW; if (PTR.suspended || saver_on()) return; if (now - PTR.wheelAt < PTR_WHEEL || (!dx && !dy)) return; PTR.wheelAt = now; PTR.usedAt = now; idle_touch();
+  if (!PTR.on) { ptr_show(); PTR.dirty = 1; return; }
+  int k = dy > 0 ? K_UP : dy < 0 ? K_DOWN : dx > 0 ? K_RIGHT : K_LEFT; key_core(app_mirror_key(k), 1, 0); key_core(k, 0, 0); }
 void app_pointer_system(int show) {
   if (PTR.suspended) return;
   if (!show) { ptr_hide(); return; }
-  if (PTR.arrowHid) return; /* a notice is not the deliberate gesture that leaves keyboard/idle mode */
+  if (PTR.wheelLocked) return; /* only the wheel leaves keyboard/idle mode */
   ptr_show();
 }
 void app_pointer_focus(int active) {
   PTR.suspended = !active; PTR.on = 0; PTR.hasHv = 0; PTR.dirty = 0;
-  PTR.arrowHid = 0; PTR.anchor = 0;
   PTR.down = 0; PTR.downAct = 0; PTR.eatUp = 0; PTR.eatOk = 0;
-  plat_pointer_image(1); /* return the saved image to Home/settings/other apps */
+  plat_pointer_image(active && PTR.wheelLocked ? 0 : 1); /* Home gets the original; our lock survives a return */
 }
 void app_key(int k, int down, int repeat) {
   if (k == K_CURSOR_SHOW || k == K_CURSOR_HIDE) { if (down) app_pointer_system(k == K_CURSOR_SHOW); return; } /* a notice from the TV, not a key */

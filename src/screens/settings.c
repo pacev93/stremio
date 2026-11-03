@@ -47,6 +47,7 @@ static const Opt SVOL[] = { { "10", "10%" }, { "20", "20%" }, { "30", "30%" }, {
 static const Opt LANG_OPTS[] = { { "", "Off" }, { "eng", "English" }, { "ara", "Arabic" }, { "fre", "French" }, { "spa", "Spanish" }, { "ger", "German" }, { "ita", "Italian" }, { "por", "Portuguese" }, { "rus", "Russian" }, { "tur", "Turkish" }, { "pol", "Polish" }, { "dut", "Dutch" }, { "swe", "Swedish" }, { "heb", "Hebrew" }, { "hin", "Hindi" }, { "jpn", "Japanese" }, { "kor", "Korean" }, { "chi", "Chinese" } };
 static const Opt SEEK[] = { { "5", "5s" }, { "10", "10s" }, { "15", "15s" }, { "20", "20s" }, { "30", "30s" } };
 static const Opt DTSM[] = { { "auto", "Auto" }, { "convert", "Convert" }, { "off", "Off" } }; /* DTS sound: found out by playing, always converted, or left to the TV */
+static const Opt BUFFER[] = { { "auto", "Auto" }, { "10", "10 s" }, { "20", "20 s" }, { "30", "30 s" } };
 static const Opt ASPECT[] = { { "fit", "Original" }, { "fill", "Fill the screen" }, { "zoom", "Zoom" } };
 static const Opt SIZES[] = { { "0", "72%" }, { "1", "80%" }, { "2", "100%" }, { "3", "120%" }, { "4", "140%" }, { "5", "160%" }, { "6", "180%" } };
 static const Opt COLORS[] = { { "#ffffff", "White" }, { "#ffe600", "Yellow" }, { "#00e5ff", "Cyan" } };
@@ -57,7 +58,7 @@ static const Opt SS_OPTS[] = { { "0", "Off" }, { "1", "1 min" }, { "2", "2 min" 
 static const Opt ACCENT_OPTS[] = { { "logo", "From the logo" }, { "adaptive", "From the artwork" }, { "purple", "Purple" }, { "violet", "Violet" }, { "fuchsia", "Fuchsia" }, { "pink", "Pink" }, { "rose", "Rose" }, { "red", "Red" }, { "orange", "Orange" }, { "amber", "Amber" }, { "gold", "Gold" }, { "lime", "Lime" }, { "green", "Green" }, { "emerald", "Emerald" }, { "teal", "Teal" }, { "cyan", "Cyan" }, { "sky", "Sky" }, { "blue", "Blue" }, { "indigo", "Indigo" }, { "graphite", "Graphite" } };
 #define NCAT 9
 #define MAXROWS 48
-static Setting playBase[8], playS[8], subsS[6], audS[5], lookS[2], langS[2], keyS[4], addonS[40], acctS[1], supS[6];
+static Setting playBase[9], playS[9], subsS[6], audS[5], lookS[2], langS[2], keyS[4], addonS[40], acctS[1], supS[6];
 static Cat cats[NCAT]; static int ncat; /* (Keys leaves when this build carries every key) */
 
 /* the layout, in the web's pixels: the grid is centred, 1600 wide, 150 from the top */
@@ -146,6 +147,7 @@ static void play_layout(void) {
   for (int i = 0; i < 4; i++) playS[n++] = playBase[i];
   if (on) playS[n++] = playBase[6];
   const TvCaps *tc = best_caps(); if (tc && tc->dv) playS[n++] = playBase[7];
+  playS[n++] = playBase[8];
   iUsb = n; playS[n++] = playBase[5];
   for (int i = 0; i < ncat; i++) if (cats[i].opts == playS) { cats[i].n = n; if (S.cat == i && S.idx >= n) S.idx = n - 1; }
 }
@@ -164,6 +166,9 @@ static void build(void) {
   set_s(&playBase[3], "bgTrailer", "Background trailers", "A trailer plays behind Home after a few seconds", OO, 2, "true");
   set_s(&playBase[4], "autoBest", "Play the best stream automatically", "", OO, 2, "false");
   set_s(&playBase[7], "dv7Convert", "Dolby Vision for Blu-ray copies", "Their picture is converted on this TV so it shows in Dolby Vision, not HDR10", OO, 2, "true");
+  set_s(&playBase[8], "nativeBufferSeconds", "Video buffer", "Auto uses the TV default. Fixed targets apply to the next stream; the TV may limit them.", BUFFER, 4, "auto");
+  { const char *d = plat_device_name(), *p = d ? strstr(d, "webOS ") : NULL; int major = p ? atoi(p + 6) : 0;
+    if (major != 5 && major != 6) { playBase[8].off = 1; snprintf(playBase[8].ds, sizeof playBase[8].ds, "%s", "Available on webOS 5 and 6"); } }
   set_s(&playBase[6], "bgTrailerVol", "Volume", "The sound comes up softly to this level", SVOL, 10, "70"); playBase[6].sub = 1; /* (shown right under the trailers while they are on: play_layout; drawn as theirs, set in) */
   usb_row();
   set_s(&subsS[0], "subsLang", "Default subtitles", "Chosen by itself when a film starts", LANG_OPTS, 18, "eng");

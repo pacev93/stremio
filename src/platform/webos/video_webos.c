@@ -22,6 +22,7 @@
    - the TV's screen saver does not count the GL-composed video as video: its request is answered
      "no" while a film plays. */
 #include "core/video.h"
+#include "core/store.h"
 #include "platform/plat.h"
 #include <SDL2/SDL.h>
 #include <dlfcn.h>
@@ -60,9 +61,26 @@ static struct {
   char mediaId[64]; VidState st; int live, loaded, ended, error, playing, pausedByUs, audioUnsup;
   char err[160]; double pos, dur, bufEnd, fps; int w, h, rate; long bits; char hdr[24], scan[24];
   VidTrack aud[16]; int naud; VidTrack txt[24]; int ntxt; int curAud, curTxt;
-  int bindWanted, died;
+  int bindWanted, died, bufferProfile, bufferRejected;
 } S;
 static char url[8192];
+static int bufferFallback; static Uint32 bufferLoadAt; /* main thread; reset for each new source */
+/* Known older native HLS thresholds, seconds. Direct MKV support on the CX is still an experiment.
+   Keep userBufferCtrl=false and the original settings for other firmware and the local DTS converter. */
+static int native_buffer_profile(const char *uri) {
+  const char *value = store_get("nativeBufferSeconds", "auto");
+  int target = !strcmp(value, "10") ? 10 : !strcmp(value, "20") ? 20 : !strcmp(value, "30") ? 30 : 0;
+  if (!target) return 0;
+  const char *host;
+  if (!strncmp(uri, "https://", 8)) host = uri + 8;
+  else if (!strncmp(uri, "http://", 7)) host = uri + 7;
+  else return 0;
+  const char *local[] = { "127.0.0.1", "localhost", "[::1]" };
+  for (int i = 0; i < 3; i++) { size_t n = strlen(local[i]); if (!strncasecmp(host, local[i], n) && (!host[n] || host[n] == ':' || host[n] == '/')) return 0; }
+  const char *device = plat_device_name(), *release = device ? strstr(device, "webOS ") : NULL;
+  int major = release ? atoi(release + 6) : 0;
+  return major == 5 || major == 6 ? target : 0;
+}
 static struct { int on; char base[4096]; double off, dur; } timed; /* video_load_timed: seeks are loads, times offset */
 /* the requested plane, in layout units; the crop pair (-1 = none) */
 static int winX, winY, winW = 1920, winH = 1080; static int cropSX = -1, cropSY, cropSW, cropSH, cropDX, cropDY, cropDW, cropDH; static int noCrop;
@@ -217,7 +235,10 @@ static bool on_load(LSHandle *h, LSMessage *m, void *ctx) {
   (void)h; const char *p = lsPayload(m); log_payload("load", p);
   char mid[64] = ""; if (p) str_in(p, NULL, "\"mediaId\":\"", mid, sizeof mid);
   if ((unsigned)(uintptr_t)ctx != session) { if (mid[0]) { char b[128]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\"}", mid); call("unload", b, NULL, NULL); } return true; } /* a cancelled load still made a pipeline: free the decoder */
-  if (!mid[0]) { pthread_mutex_lock(&mu); S.error = 1; S.st = VID_ERROR; snprintf(S.err, sizeof S.err, "load failed"); pthread_mutex_unlock(&mu); return true; }
+  if (!mid[0]) { pthread_mutex_lock(&mu);
+    if (S.bufferProfile) S.bufferRejected = 1; /* the main thread retries once with the original payload */
+    else { S.error = 1; S.st = VID_ERROR; snprintf(S.err, sizeof S.err, "load failed"); }
+    pthread_mutex_unlock(&mu); return true; }
   pthread_mutex_lock(&mu); snprintf(S.mediaId, sizeof S.mediaId, "%s", mid); pthread_mutex_unlock(&mu);
   char b[128];
   snprintf(b, sizeof b, "{\"connectionId\":\"%s\"}", mid); call("notifyForeground", b, NULL, NULL);
@@ -301,20 +322,26 @@ static void stop_session(void) {
   seekTarget = -1; seekRefusedTries = 0; seekRetryAt = 0; seekWait = 0; hold = 0; lastCT = -1;
   if (mid[0]) { char b[128]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\"}", mid); call("unload", b, NULL, NULL); }
 }
-void video_unload(void) { resume.on = 0; timed.on = 0; url[0] = 0; stop_session(); }
+void video_unload(void) { resume.on = 0; timed.on = 0; bufferFallback = 0; url[0] = 0; stop_session(); }
 static void start_load(void) {
   if (!ready && !video_init(NULL)) { pthread_mutex_lock(&mu); S.st = VID_ERROR; S.error = 1; snprintf(S.err, sizeof S.err, "no media service"); pthread_mutex_unlock(&mu); return; }
-  stop_session(); txtPending = -2; pthread_mutex_lock(&mu); S.st = VID_LOADING; S.curTxt = -1; if (timed.on) { S.pos = timed.off; S.dur = timed.dur; } pthread_mutex_unlock(&mu); unsigned mine = session;
+  int profile = bufferFallback ? 0 : native_buffer_profile(url);
+  stop_session(); txtPending = -2; pthread_mutex_lock(&mu); S.st = VID_LOADING; S.curTxt = -1; S.bufferProfile = profile; if (timed.on) { S.pos = timed.off; S.dur = timed.dur; } pthread_mutex_unlock(&mu); unsigned mine = session;
+  bufferLoadAt = SDL_GetTicks();
   cropSX = -1; noCrop = 0;
   char payload[8192 + 512]; const char *win = expWin[0] ? expWin : "window_id_dummy";
-  int n = snprintf(payload, sizeof payload, "{\"payload\":{\"option\":{\"useSeekableRanges\":true,\"appId\":\"%s\",\"bufferControl\":{\"userBufferCtrl\":false},\"windowId\":\"%s\"}},\"uri\":\"%s\",\"type\":\"media\"}", SB_APP_ID, win, url);
+  char buffer[160];
+  if (profile) snprintf(buffer, sizeof buffer, "{\"userBufferCtrl\":false,\"preBufferTime\":%d,\"bufferingMinTime\":%d,\"bufferingMaxTime\":%d}", profile / 2, profile < 20 ? 2 : 5, profile);
+  else snprintf(buffer, sizeof buffer, "{\"userBufferCtrl\":false}");
+  int n = snprintf(payload, sizeof payload, "{\"payload\":{\"option\":{\"useSeekableRanges\":true,\"appId\":\"%s\",\"bufferControl\":%s,\"windowId\":\"%s\"}},\"uri\":\"%s\",\"type\":\"media\"}", SB_APP_ID, buffer, win, url);
   if (n >= (int)sizeof payload) { pthread_mutex_lock(&mu); S.st = VID_ERROR; S.error = 1; snprintf(S.err, sizeof S.err, "address too long"); pthread_mutex_unlock(&mu); return; }
   if (expWin[0]) apply_plane(); /* the exported window gets its frame and place before the load */
+  if (profile) fprintf(stderr, "[video] native buffer requested: start %d s, low %d s, refill %d s; effective size is firmware-dependent\n", profile / 2, profile < 20 ? 2 : 5, profile);
   if (!call("load", payload, on_load, (void *)(uintptr_t)mine)) { pthread_mutex_lock(&mu); S.st = VID_ERROR; S.error = 1; snprintf(S.err, sizeof S.err, "no media service"); pthread_mutex_unlock(&mu); }
 }
-void video_load(const char *u) { resume.on = 0; timed.on = 0; snprintf(url, sizeof url, "%s", u ? u : ""); start_load(); }
+void video_load(const char *u) { resume.on = 0; timed.on = 0; bufferFallback = 0; snprintf(url, sizeof url, "%s", u ? u : ""); start_load(); }
 void video_load_timed(const char *base, double durSec) {
-  resume.on = 0; timed.on = 1; timed.off = 0; timed.dur = durSec; snprintf(timed.base, sizeof timed.base, "%s", base); snprintf(url, sizeof url, "%s?t=0", base); start_load();
+  resume.on = 0; timed.on = 1; bufferFallback = 0; timed.off = 0; timed.dur = durSec; snprintf(timed.base, sizeof timed.base, "%s", base); snprintf(url, sizeof url, "%s?t=0", base); start_load();
 }
 static void simple(const char *method) { char mid[64]; pthread_mutex_lock(&mu); snprintf(mid, sizeof mid, "%s", S.mediaId); pthread_mutex_unlock(&mu); if (!mid[0]) return; char b[160]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\"}", mid); call(method, b, NULL, NULL); }
 void video_play(void) { pthread_mutex_lock(&mu); S.pausedByUs = 0; if (S.st == VID_PAUSED) S.st = VID_PLAYING; pthread_mutex_unlock(&mu); simple("play"); }
@@ -395,12 +422,17 @@ int video_set_crop(int sx, int sy, int sw, int sh, float dx, float dy, float dw,
 void video_pump(void) {
   if (ssRefused == 1) { ssRefused = 2; char b[160]; snprintf(b, sizeof b, "{\"subscribe\":true,\"clientName\":\"%s\"}", SB_APP_ID);
     fprintf(stderr, "[video] screen saver requests through the app's luna handle: %s\n", plat_luna_subscribe(SS_REGISTER, b, on_screensaver_app, NULL) ? "asked" : "not possible"); }
-  int bind = 0, again = 0, died = 0; double pos = 0; int aud = 0, txt = -1, loaded = 0;
+  int bind = 0, again = 0, died = 0, retryBuffer = 0; double pos = 0; int aud = 0, txt = -1, loaded = 0;
   pthread_mutex_lock(&mu);
   if (S.bindWanted & 1) bind = acb != 0; if (S.bindWanted & 2) again = 1; S.bindWanted = 0;
   if (S.died) { S.died = 0; died = 1; pos = S.pos; aud = S.curAud; txt = S.curTxt; }
   loaded = S.loaded;
+  retryBuffer = S.bufferRejected || (S.bufferProfile && !S.live && !S.pausedByUs &&
+    (S.st == VID_ERROR || SDL_GetTicks() - bufferLoadAt >= (Uint32)(S.bufferProfile + 8) * 1000u));
   pthread_mutex_unlock(&mu);
+  if (retryBuffer && !bufferFallback && url[0]) { bufferFallback = 1;
+    fprintf(stderr, "[video] native buffer profile unavailable or startup timed out; retrying original defaults once\n");
+    start_load(); return; }
   if (bind) { pthread_t th; if (!pthread_create(&th, NULL, bind_plane, (void *)(uintptr_t)session)) pthread_detach(th); } /* every loadCompleted binds the plane again */
   else if (again) apply_plane();
   if (died && url[0]) { fprintf(stderr, "[video] the pipeline died: loading the same source again at %.0f s\n", pos); resume.on = 1; resume.at = pos; resume.aud = aud; resume.txt = txt; start_load(); return; }
