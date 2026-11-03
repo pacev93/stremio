@@ -1,4 +1,4 @@
-# MKV / Usenet streaming investigation
+# Origin test build: HTTP ranges and Magic Remote cursor
 
 ## Scope and source versions
 
@@ -71,11 +71,12 @@ version, not a verified version of the user's server.
 
 ## Narrow change and validation
 
-Only the production callback in `src/core/net.c` changes: a complete 206 is
+For the streaming fix, only the production callback in `src/core/net.c` changes: a complete 206 is
 acknowledged normally, enabling connection reuse. Responses exceeding the
 requested buffer and a full-file 200 still stop at the existing limit.
-No read-ahead proxy, new buffering service, subtitle scheduling change, LG
-buffer setting, codec change or UI change is included.
+This streaming fix adds no read-ahead proxy, new buffering service, subtitle
+scheduling change, LG buffer setting or codec change. The same test package
+also contains the separately requested cursor fix described below.
 
 Run the transport regression using host SDL2 headers or the SDK headers:
 
@@ -109,3 +110,41 @@ time, stalls and seek/resume. For diagnosis, compare backend request counts and
 Origin's player/buffer diagnostics; redact stream URLs and tokens from logs.
 Use the original 1.0.0 IPK to roll back if necessary. A TV comparison is still
 required before calling the reported buffering problem fixed.
+
+## Magic Remote cursor
+
+The second requested fix addresses
+[Origin issue #1](https://github.com/stremio-origin/webos/issues/1), reported on
+the C8/C9 and now by the user on a CX: once visible, the pointer stays visible
+throughout playback and elsewhere in the app.
+
+Originally, `ptr_hide` only changed the internal hover state. It did not request
+that the LG compositor hide its cursor. There was also no application-local idle
+timeout, and `ptr_frame` returned immediately when hover input was not dirty.
+
+The correction links pointer transitions to a small platform visibility API.
+On webOS, `SDL_webOSCursorVisibility` is resolved from the already loaded system
+SDL, with `SDL_ShowCursor` as the fallback if the export is absent or refuses the
+request. No new hard dependency is introduced for older TVs. The macOS
+implementation is a no-op, and the idle timeout is compiled only for webOS.
+
+After three seconds without pointer activity, the cursor hides even during
+playback and even without another mouse event. Real movement or a click brings
+it back; arrows hide it immediately. Repeated system-show notices do not keep
+it alive forever. Existing arrow/tremor suppression remains in place. A held
+click is not timed out; releasing it starts a fresh idle period. Wheel activity
+renews the visible pointer's deadline. No global TV setting is changed.
+
+```sh
+python3 tests/pointer/run.py
+```
+
+The tests compile the actual pointer-handler section and native wrapper from
+the production files, with controlled time and stubbed UI/native calls. The
+original handler fails the idle-hide assertion; the corrected handler passes
+seven input scenarios and three native/fallback cases. The complete ARM build
+also passes. The real LG compositor remains to be tested on the CX: show the
+cursor, leave the remote still, verify it disappears after about three seconds,
+then check movement, clicks, arrows, wheel input and a held click both in menus
+and during playback. Autoscrolling mentioned separately in the upstream issue
+is outside this change.

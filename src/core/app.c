@@ -1,4 +1,5 @@
 #include "core/app.h"
+#include "platform/plat.h"
 #include "core/bgtrailer.h"
 #include "core/best.h"
 #include "core/keys.h"
@@ -769,9 +770,10 @@ static void key_core(int k, int down, int repeat);
 #define PTR_ARROW_WIN 0.35
 #define PTR_ARROW_DIST 32
 #define PTR_ARROW_PAUSE 0.3
-static struct { int on; float x, y; Hit hv; int hasHv; float hx, hy; double movedAt; int down, downAct; Hit act; double okKeyAt, clickAt, wheelAt; int eatUp, eatOk, arrowHid; double arrowAt; int anchor; float ax, ay; double tremAt; int dirty; } PTR;
-static void ptr_show(void) { PTR.arrowHid = 0; if (PTR.on) return; PTR.on = 1; PTR.hasHv = 0; }
-static void ptr_hide(void) { if (!PTR.on) return; PTR.on = 0; PTR.hasHv = 0; }
+#define PTR_IDLE_S 3.0
+static struct { int on; float x, y; Hit hv; int hasHv; float hx, hy; double movedAt; int down, downAct; Hit act; double okKeyAt, clickAt, wheelAt; int eatUp, eatOk, arrowHid; double arrowAt; int anchor; float ax, ay; double tremAt; int dirty; double usedAt; } PTR;
+static void ptr_show(void) { PTR.arrowHid = 0; if (PTR.on) return; PTR.on = 1; PTR.hasHv = 0; PTR.usedAt = NOW; plat_cursor_visible(1); }
+static void ptr_hide(void) { if (!PTR.on) return; PTR.on = 0; PTR.hasHv = 0; plat_cursor_visible(0); }
 static int ptr_tremor(double now) { if (!PTR.arrowHid) return 0; if (now - PTR.arrowAt < PTR_ARROW_WIN) return 1;
   if (!PTR.anchor || now - PTR.tremAt > PTR_ARROW_PAUSE) { PTR.anchor = 1; PTR.ax = PTR.x; PTR.ay = PTR.y; } PTR.tremAt = now; float dx = PTR.x - PTR.ax, dy = PTR.y - PTR.ay; return dx * dx + dy * dy < PTR_ARROW_DIST * PTR_ARROW_DIST; }
 static void ptr_nav_back(void) { if (topNav.want >= 0) return; Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; for (int j = 2; j < 5; j++) if (chipScr(j) == cur && topNav.idx != j) { topNav.idx = j; topnav_paint(); } }
@@ -781,16 +783,21 @@ static void ptr_settle(double now) { if (!PTR.hasHv) return; const Hit *h = hit_
   /* the element is looked up by identity among this frame's rectangles */
   extern const Hit *hit_find(const Hit *like); const Hit *e = hit_find(&PTR.hv); (void)h; if (e) { found = 1; cx = e->x + e->w / 2; cy = e->y + e->h / 2; }
   if (!found) { PTR.movedAt = now; PTR.hasHv = 0; return; } if (fabsf(cx - PTR.hx) > 3 || fabsf(cy - PTR.hy) > 3) PTR.movedAt = now; PTR.hx = cx; PTR.hy = cy; }
-static void ptr_frame(void) { if (!PTR.on || !PTR.dirty) return; PTR.dirty = 0; double now = NOW; if (player_open()) { extern void player_ptr(int type, float x, float y); player_ptr(0, PTR.x, PTR.y); return; }
+static void ptr_frame(void) {
+#ifdef SB_WEBOS
+  /* Run even when no movement dirtied the hover state, including during playback. */
+  if (PTR.on && !PTR.down && NOW - PTR.usedAt >= PTR_IDLE_S) ptr_hide();
+#endif
+  if (!PTR.on || !PTR.dirty) return; PTR.dirty = 0; double now = NOW; if (player_open()) { extern void player_ptr(int type, float x, float y); player_ptr(0, PTR.x, PTR.y); return; }
   if (PTR.down) return; /* pressed: a hand's tremble must not move the press onto the next card */
   ptr_settle(now); const Hit *d = hit_at(PTR.x, PTR.y);
   if (topNav.active && !(d && d->nav)) ptr_nav_back();
   if (!d || !d->focus || (PTR.hasHv && hit_same(d, &PTR.hv))) return;
   if (PTR.movedAt && now - PTR.movedAt < PTR_SETTLE) { PTR.dirty = 1; return; } /* the page is still moving under the pointer */
   d->focus(d->a, d->b); ptr_keep(d); }
-void app_pointer_move(float x, float y) { if (x == PTR.x && y == PTR.y) return; PTR.x = x; PTR.y = y; if (ptr_tremor(NOW)) return; ptr_show(); idle_touch_by("pointer moved"); PTR.dirty = 1; }
+void app_pointer_move(float x, float y) { if (x == PTR.x && y == PTR.y) return; PTR.x = x; PTR.y = y; if (ptr_tremor(NOW)) return; ptr_show(); PTR.usedAt = NOW; idle_touch_by("pointer moved"); PTR.dirty = 1; }
 void app_pointer_button(int down, float x, float y) {
-  double now = NOW; PTR.x = x; PTR.y = y;
+  double now = NOW; PTR.x = x; PTR.y = y; PTR.usedAt = now;
   if (saver_on()) return; /* the screensaver covers the page: nothing under it is pressed */
   if (down) { ptr_show(); idle_touch();
     if (PTR.okKeyAt && now - PTR.okKeyAt < PTR_DEDUPE) { PTR.eatUp = 1; return; } /* the OK key of this same press came first */
@@ -808,8 +815,8 @@ void app_pointer_button(int down, float x, float y) {
   const Hit *d = hit_at(x, y); if (d && hit_same(d, &PTR.act)) PTR.act.act(PTR.act.a, PTR.act.b); /* released on it: its own action */
 }
 /* the wheel = the Up/Down arrows (Left/Right for a sideways wheel), one per notch; it leaves the pointer out */
-void app_pointer_wheel(float dx, float dy) { double now = NOW; if (saver_on()) return; if (now - PTR.wheelAt < PTR_WHEEL || (!dx && !dy)) return; PTR.wheelAt = now; idle_touch(); int k = dy > 0 ? K_UP : dy < 0 ? K_DOWN : dx > 0 ? K_RIGHT : K_LEFT; key_core(app_mirror_key(k), 1, 0); key_core(k, 0, 0); }
-void app_pointer_system(int show) { if (!show) { ptr_hide(); return; } if (PTR.arrowHid) return; ptr_show(); }
+void app_pointer_wheel(float dx, float dy) { double now = NOW; if (saver_on()) return; if (now - PTR.wheelAt < PTR_WHEEL || (!dx && !dy)) return; PTR.wheelAt = now; PTR.usedAt = now; idle_touch(); int k = dy > 0 ? K_UP : dy < 0 ? K_DOWN : dx > 0 ? K_RIGHT : K_LEFT; key_core(app_mirror_key(k), 1, 0); key_core(k, 0, 0); }
+void app_pointer_system(int show) { if (!show) { ptr_hide(); return; } if (PTR.arrowHid) { plat_cursor_visible(0); return; } ptr_show(); }
 void app_key(int k, int down, int repeat) {
   if (k == K_CURSOR_SHOW || k == K_CURSOR_HIDE) { if (down) app_pointer_system(k == K_CURSOR_SHOW); return; } /* a notice from the TV, not a key */
   if (down && k == K_OK && !repeat) { if (PTR.eatOk || PTR.down || (PTR.clickAt && NOW - PTR.clickAt < PTR_DEDUPE)) { PTR.eatOk = 1; return; } PTR.okKeyAt = NOW; } /* the click of this same press came first */

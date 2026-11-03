@@ -8,6 +8,8 @@
 void plat_pre_init(const char *appId);
 /* after the window exists */
 void plat_post_window(SDL_Window *w);
+/* The visible system pointer (webOS compositor); no change to the Mac's cursor policy. */
+void plat_cursor_visible(int visible);
 /* where the bundled assets are (fonts, i18n) and where to keep data (settings, caches) */
 const char *plat_asset_dir(void);
 const char *plat_data_dir(void);
