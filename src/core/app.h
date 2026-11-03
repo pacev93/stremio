@@ -122,6 +122,7 @@ void app_pointer_move(float x, float y);          /* layout units */
 void app_pointer_button(int down, float x, float y);
 void app_pointer_wheel(float dx, float dy);
 void app_pointer_system(int show);                /* the TV showed / hid its cursor */
+void app_pointer_focus(int active);               /* restore our cursor image when leaving the foreground */
 
 /* ---- toast / notices ---- */
 void toast(const char *msg, int ms, const char *key);

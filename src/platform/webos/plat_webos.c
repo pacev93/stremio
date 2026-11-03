@@ -65,11 +65,41 @@ void plat_pre_init(const char *appId) {
   snprintf(devName, sizeof devName, "LG webOS %s", rel);
 }
 void plat_post_window(SDL_Window *w) { (void)w; }
+void plat_pointer_image(int visible) {
+  static SDL_Cursor *(*get)(void), *(*def)(void);
+  static SDL_Cursor *(*create)(const Uint8 *, const Uint8 *, int, int, int, int);
+  static void (*set)(SDL_Cursor *);
+  static SDL_Cursor *blank, *shown; static int tried, createTried;
+  if (!tried) {
+    tried = 1;
+    *(void **)(&get) = dlsym(RTLD_DEFAULT, "SDL_GetCursor");
+    *(void **)(&def) = dlsym(RTLD_DEFAULT, "SDL_GetDefaultCursor");
+    *(void **)(&create) = dlsym(RTLD_DEFAULT, "SDL_CreateCursor");
+    *(void **)(&set) = dlsym(RTLD_DEFAULT, "SDL_SetCursor");
+  }
+  if (!get || !create || !set) return; /* leave the normal pointer intact */
+  if (visible) { if (shown) { set(shown); shown = NULL; } return; }
+  SDL_Cursor *current = get(); if (!current && def) current = def();
+  if (!current || current == blank) return; /* need a real image to restore */
+  if (!createTried) {
+    const Uint8 bits[8] = { 0 }; createTried = 1;
+    blank = create(bits, bits, 8, 8, 0, 0);
+    if (!blank) fprintf(stderr, "[pointer] transparent cursor unavailable; original pointer retained\n");
+  }
+  if (blank) { shown = current; set(blank); }
+}
 const char *plat_asset_dir(void) { return assetDir; }
 const char *plat_data_dir(void) { return dataDir; }
 void plat_window_size(int *w, int *h, Uint32 *flags) { *w = 1920; *h = 1080; *flags = SDL_WINDOW_OPENGL; /* measured on a 43LK5900 (webOS 4.4): with SDL_WINDOW_FULLSCREEN the compositor hands back a 1280x720 surface; without it, 1920x1080 */
   const char *v = getenv("SB_WIN"); if (v) { int a, b, f; if (sscanf(v, "%dx%d:%d", &a, &b, &f) == 3) { *w = a; *h = b; *flags = SDL_WINDOW_OPENGL | (f & 1 ? SDL_WINDOW_FULLSCREEN : 0) | (f & 2 ? SDL_WINDOW_ALLOW_HIGHDPI : 0) | (f & 4 ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0); } } /* SB_WIN=3840x2160:2 to try other surface requests */ }
 int plat_map_key(const SDL_KeyboardEvent *e) {
+  /* LG media values may arrive without SDL's normalised symbol/scancode. */
+  switch (e->keysym.sym) {
+    case 415: return K_PLAY;
+    case 19: return K_PAUSE;
+    case 10252: return K_PLAYPAUSE;
+    default: break;
+  }
   switch (e->keysym.scancode) {
     case SDL_WEBOS_SCANCODE_BACK: return K_BACK;
     case SDL_WEBOS_SCANCODE_RED: return K_RED; case SDL_WEBOS_SCANCODE_GREEN: return K_GREEN;

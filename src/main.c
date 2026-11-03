@@ -263,6 +263,9 @@ int main(int argc, char **argv) {
   while (!app_quitting()) {
     SDL_Event e; Uint32 tEv0 = SDL_GetTicks();
     while (SDL_PollEvent(&e)) {
+#ifdef SB_WEBOS
+      int life = plat_lifecycle(&e); if (life) app_pointer_focus(life > 0);
+#endif
       if (getenv("SB_EVLOG") || frame < 120) if (e.type == SDL_QUIT || e.type == SDL_KEYDOWN || e.type == SDL_KEYUP || e.type == SDL_WINDOWEVENT) fprintf(stderr, "[ev] type=%d%s sc=%d sym=%d win=%d\n", e.type, e.type == SDL_QUIT ? " QUIT" : "", e.type == SDL_KEYDOWN || e.type == SDL_KEYUP ? e.key.keysym.scancode : 0, e.type == SDL_KEYDOWN || e.type == SDL_KEYUP ? e.key.keysym.sym : 0, e.type == SDL_WINDOWEVENT ? e.window.event : 0);
       if (e.type == SDL_QUIT) { fprintf(stderr, "[exit] SDL_QUIT\n"); app_quit(); }
       else if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) { int k = plat_map_key(&e.key);
@@ -371,6 +374,9 @@ int main(int argc, char **argv) {
     if (shot && frame == shotAt) { screenshot(shot, dw, dh); if (getenv("SB_SHOT_EXIT")) app_quit(); }
   }
   fprintf(stderr, "[exit] after %d frames\n", frame);
+#ifdef SB_WEBOS
+  app_pointer_focus(0);
+#endif
   p2p_shutdown(); /* the engine's threads end and its buffer files go */
   store_flush();
   SDL_GL_DeleteContext(ctx); SDL_DestroyWindow(win); SDL_Quit();

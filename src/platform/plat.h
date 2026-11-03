@@ -8,6 +8,8 @@
 void plat_pre_init(const char *appId);
 /* after the window exists */
 void plat_post_window(SDL_Window *w);
+/* Swap only this window's pointer image; never disable pointer input or TV-wide visibility. */
+void plat_pointer_image(int visible);
 /* where the bundled assets are (fonts, i18n) and where to keep data (settings, caches) */
 const char *plat_asset_dir(void);
 const char *plat_data_dir(void);

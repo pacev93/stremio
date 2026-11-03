@@ -1,24 +1,18 @@
-# Streaming-Fix und Rücknahme der Cursor-Änderung
+# Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.3
+## Aktueller Stand: 1.0.4
 
-Version 1.0.3 enthält den HTTP-Range-Fix und stellt das gesamte Cursor-Verhalten
-des Originals wieder her. Unter `src/` unterscheidet sich nur noch
-`src/core/net.c` vom Originalcommit
-`051818e55cf38caed42d597fbcb05bdd3fc5bbd9`.
+Version 1.0.4 behält den HTTP-Range-Fix bei und ergänzt die ausdrücklich
+angefragten Korrekturen für Cursor, DTS-Konvertierung und die Play-Taste.
+Ausgangspunkt bleibt das Original 1.0.0, Commit
+`051818e55cf38caed42d597fbcb05bdd3fc5bbd9`. Der übrige Funktionsumfang und die
+Originalressourcen bleiben erhalten. Es gibt keinen zusätzlichen Read-Ahead-Proxy.
 
-Die Cursor-Steuerung aus 1.0.1/1.0.2 wurde zurückgenommen: Der Nutzer meldete,
-dass sich der Zeiger weder in Origin noch im LG-Homebildschirm wieder aktivieren
-ließ und schließlich ein TV-Neustart nötig war. Die Tests mit simulierten
-UI-/SDL-Funktionen hatten diese systemweite Wirkung nicht erfasst. Die native
-Cursor-Steuerung und der SDL-Disable-Fallback sind vollständig entfernt.
-Damit gilt wieder die ursprüngliche Einschränkung: Der Cursor kann sichtbar
-bleiben. Diese Einschränkung wird bis zu einer separat überprüfbaren Lösung
-akzeptiert, statt die Zeigersteuerung des Fernsehers zu blockieren.
-
-Der zusätzlich gemeldete Fehler „Pause funktioniert, Play danach nicht“ ist
-noch offen. Die Fernbedienungszuordnung ist in dieser Wiederherstellungsversion
-ebenfalls unverändert gegenüber dem Original.
+Die fehlerhafte Cursor-Steuerung aus 1.0.1/1.0.2 wurde bereits mit 1.0.3
+zurückgenommen: Der Nutzer konnte den Zeiger auch im LG-Homebildschirm nicht mehr
+aktivieren und musste schließlich den TV neu starten. Die damaligen Tests mit
+simulierten SDL-Funktionen hatten diese systemweite Wirkung nicht erfasst.
+Die neue Umsetzung wird unten einschließlich ihrer Prüfgrenzen beschrieben.
 
 Homebrew-Repository:
 
@@ -26,8 +20,73 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.3 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.4 als Update installieren, ohne die App vorher zu deinstallieren.
+Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
+
+## Cursor: ausschließlich das Bild austauschen
+
+Nach drei Sekunden ohne Zeigerbedienung oder bei Pfeiltasten wird über
+`SDL_CreateCursor`/`SDL_SetCursor` ein transparentes Cursorbild verwendet.
+Bewegung, Klick oder eine spätere Cursor-Show-Meldung stellt das zuvor gesicherte
+Bild wieder her. Die kurze Unterdrückung unmittelbar nach Pfeiltasten läuft
+nach 350 ms aus; eine spätere Show-Meldung wird wieder akzeptiert.
+
+`SDL_webOSCursorVisibility` und `SDL_ShowCursor` werden nicht aufgerufen oder
+dynamisch aufgelöst. Der Bewegungseingang bleibt eingeschaltet. Beim Verlassen
+des Vordergrunds und beim regulären Beenden wird das ursprüngliche Bild
+wiederhergestellt. Hintergrundereignisse können es nicht erneut ausblenden;
+ein beim Fokuswechsel gehaltener Klick wird zurückgesetzt. Falls SDL kein
+wiederherstellbares Originalbild oder keinen transparenten Cursor bereitstellt,
+bleibt der vorhandene Zeiger unverändert.
+
+Sieben Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
+Bildwechsel, Bewegungseingang, Aufwecken, Pfeiltasten, Fokuswechsel, gehaltene
+Klicks und Beenden. Acht zusätzliche Backend-Fälle prüfen fehlende Funktionen,
+fehlendes Originalbild, fehlgeschlagene Erstellung und die Wiederherstellung
+eines benutzerdefinierten Bilds. Das ist kein Nachweis für den geschlossenen
+LG-Compositor; die Darstellung und das Wiederauftauchen auf dem CX bleiben
+am TV zu prüfen.
+
+## DTS: warum „Umwandeln“ später wirkungslos erscheinen konnte
+
+Im Original schreibt ein Fehler beim Abspielen des lokal konvertierten
+HEVC/HLS-Streams dauerhaft `hlsHevcOk=false` in die gespeicherten TV-Fähigkeiten.
+Auch ein einzelner Start ohne Bild nach 25 Sekunden konnte das auslösen.
+`dts_convert` verweigerte danach jeden weiteren HEVC-Konvertierungsversuch,
+einschließlich der ausdrücklich gewählten Einstellung „Umwandeln“.
+Ein erfolgreicher späterer Versuch konnte ein bereits gespeichertes Nein
+ebenfalls nicht korrigieren. Diese Kombination passt dazu, dass derselbe
+Build zuerst funktioniert und später die DTS-Fehlermeldung zeigt. Der Zustand
+des konkreten TVs wurde nicht ausgelesen; dies ist ein im Code und in den
+Regressionstests belegter Fehler, kein abschließender Nachweis vor Ort.
+
+1.0.4 lässt die explizite Einstellung diese alte negative Beobachtung übergehen.
+Ein einzelner Streamfehler wird nicht mehr als dauerhafte HEVC/HLS-Unfähigkeit
+gespeichert. Erfolgreiche Wiedergabe kann das alte Nein wieder zu Ja ändern.
+Fehlgeschlagene Versuche bleiben auf den aktuellen Stream begrenzt, ohne
+Endlosschleife. „Automatisch“ respektiert weiterhin vorhandene negative
+Beobachtungen, „Aus“ startet keine erzwungene DTS-Konvertierung.
+
+Zusätzlich bekommt die ausgewählte DTS-Spur bei „Umwandeln“ Vorrang vor dem
+automatischen Wechsel auf eine andere, etwa zweikanalige AC3-Spur. Dies gilt
+auch bei der automatischen Sprachauswahl und der Tonwahl im bestehenden
+Dolby-Vision-Konvertierungspfad. Die ursprüngliche Konverterbibliothek bleibt
+unverändert: DTS mit sechs oder mehr Kanälen wird als Dolby Digital 5.1
+ausgegeben, Stereo bleibt Stereo. Die Tests prüfen die Entscheidungen des
+echten Playercodes mit kontrollierten Medien-/Transportgrenzen; sie decodieren
+keine Datei und ersetzen keinen Wiedergabetest auf dem Fernseher.
+
+## Separate Play-Taste
+
+Die webOS-Tastenzuordnung erkennt nun auch LGs rohe Werte 415 (Play),
+19 (Pause) und 10252 (Play/Pause). Ein separates Play bleibt Play, auch wenn
+SDL zusätzlich den allgemeinen AudioPlay-Scancode liefert. Die normalisierten
+SDL-Tasten und der kombinierte Play/Pause-Schalter bleiben unterstützt.
+Vier Fälle prüfen die tatsächliche Zuordnung zusammen mit den Medienzweigen
+des Players, darunter Pause → Play und wiederholtes Play ohne erneutes
+Pausieren. Welche Ereignisse die konkrete Fernbedienung liefert, wurde nicht
+am TV aufgezeichnet.
 
 ## Warum das Buffering wahrscheinlich besser wurde
 
@@ -109,14 +168,18 @@ jedes Archiv-Eintrags aus dem Original übernommen. Die Paketprüfung verwirft
 ```sh
 source /workspace/stremio-env/activate.sh
 python3 tests/net/run.py --sdl-include "$SDK/usr/include"
+DISPLAY=:97 python3 tests/pointer/run.py --sdl-include "$SDK/usr/include"
+python3 tests/audio/run.py
+python3 tests/remote/run.py --sdl-include "$SDK/usr/include"
 python3 tools/scrub_ipk.py candidate.ipk --reference original-1.0.0.ipk
 python3 tests/package/check.py original-1.0.0.ipk candidate.ipk
 ```
 
 Die zwölf Transportfälle umfassen feste und Chunked-Antworten, Wiederverwendung,
 Redirects, Dateiende, ignorierte/falsche Ranges, unterbrochene/überlange
-Antworten sowie HTTP-Fehler und Timeouts. Die früheren Cursor-Tests sind mit der
-fehlgeschlagenen Implementierung aus dem aktuellen Stand entfernt; ihre
-Historie bleibt in Git nachvollziehbar. Die Cursor-Rücknahme wird zusätzlich
-durch den vollständigen Quellvergleich gegen das Original und das Fehlen der
-neu eingeführten Cursor-Steuerung im ausgelieferten Programm geprüft.
+Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 15 Cursor-, 14 Audio-
+und vier Medien-Tasten-Fälle. Der Cursor-Test benötigt echte SDL2 sowie eine
+lokale X-Anzeige (hier `:97`, gegebenenfalls mit `XAUTHORITY`); er verwendet
+keinen abgeschalteten Zeiger. Das ausgelieferte Programm wird auf das Fehlen
+der beiden verworfenen Cursor-API-Namen geprüft. Die Paketprüfung liest die
+endgültige IPK-Datei und vergleicht alle 330 Daten-Einträge mit dem Original.

@@ -537,22 +537,28 @@ static void aud_label(const VidTrack *t, char *out, size_t cap) { /* "AC3 5.1" *
   char c[16]; size_t i = 0; const char *s = t->codec; if (!strncmp(s, "A_", 2)) s += 2; for (; s[i] && i + 1 < sizeof c; i++) c[i] = (char)toupper((unsigned char)s[i]); c[i] = 0;
   int ch = t->channels; snprintf(out, cap, "%s%s", c, ch == 6 ? " 5.1" : ch == 8 ? " 7.1" : ch == 2 ? " 2.0" : ch == 1 ? " 1.0" : "");
 }
+static int aud_auto_bad(const VidTrack *t) {
+  /* A requested DTS conversion keeps the preferred language's DTS track eligible. */
+  if (best_dts_mode() == 1 && aud_kind(t->codec) == 1 && !P.isTrailer && !P.isHls &&
+      !strncmp(P.url, "http", 4) && hls_conv_available()) return 0;
+  return aud_bad(t);
+}
 static void auto_audio(void) {
   if (P.autoAudDone || strcmp(store_get("enableDefaultAudioTrack", "false"), "true")) return; const char *want = store_get("defaultAudioTrack", ""); if (!*want) return;
   VidTrack ts[16]; int n = aud_list(ts, 16); if (!n) return; int pick = -1;
-  for (int i = 0; i < n; i++) if (lang_match(ts[i].lang, want) && (pick < 0 || (aud_bad(&ts[pick]) && !aud_bad(&ts[i])))) pick = i; /* in that language, one whose sound plays here first */
-  if (pick < 0 && strcmp(want, "eng")) for (int i = 0; i < n; i++) if (lang_match(ts[i].lang, "eng") && (pick < 0 || (aud_bad(&ts[pick]) && !aud_bad(&ts[i])))) pick = i; /* not in the file: English, when the file has it */
+  for (int i = 0; i < n; i++) if (lang_match(ts[i].lang, want) && (pick < 0 || (aud_auto_bad(&ts[pick]) && !aud_auto_bad(&ts[i])))) pick = i; /* in that language, one whose sound plays here first */
+  if (pick < 0 && strcmp(want, "eng")) for (int i = 0; i < n; i++) if (lang_match(ts[i].lang, "eng") && (pick < 0 || (aud_auto_bad(&ts[pick]) && !aud_auto_bad(&ts[i])))) pick = i; /* not in the file: English, when the file has it */
   if (pick >= 0) { P.autoAudDone = 1; set_audio(ts[pick].idx); }
 }
 /* No track this TV plays: the file is converted on the TV itself (video copied, the sound as Dolby Digital 5.1) and
    played from a local HLS stream through the same pipeline, from the same moment; the subtitles still read the file.
-   Not for a stream that isn't a plain http file, nor HEVC where this TV showed it can't play it from HLS. tvIdx: the
+   Not for a stream that isn't a plain http file; Auto also respects earlier HEVC/HLS failures. tvIdx: the
    track in the TV's list (the same order as the file's), -1 the first DTS / TrueHD one. 1 started */
 static int dv7_wanted(void);
 static int dts_convert(int tvIdx, const char *why) {
   if (P.isTrailer || P.isHls || strncmp(P.url, "http", 4) || !hls_conv_available()) return 0;
   char vc[32] = ""; int hevc = mkv_video_codec(mkv, vc, sizeof vc) ? strstr(vc, "HEVC") != NULL : has_word(P.sname, "hevc") || has_word(P.sname, "x265") || has_word(P.sname, "h265");
-  if (hevc && best_learned("hlsHevcOk") == 0) { fprintf(stderr, "[dts] no conversion: HEVC from local HLS failed on this TV before\n"); return 0; }
+  if (hevc && best_learned("hlsHevcOk") == 0 && best_dts_mode() != 1) { fprintf(stderr, "[dts] no conversion: HEVC from local HLS failed on this TV before\n"); return 0; }
   int ord = tvIdx; MkvAudio ma[16]; int m = mkv_audio_tracks(mkv, ma, 16);
   if (ord >= m || (ord >= 0 && !aud_kind(ma[ord].codec))) ord = -1; /* (the TV's list and the file's disagree: the first DTS / TrueHD one) */
   P.dts.conv = 1; P.dts.convOrd = ord; P.dts.hevc = hevc; P.dts.convT0 = now_(); P.dts.convAt = P.live ? video_time() : P.startAt;
@@ -586,6 +592,7 @@ static int dv7_audio(int *copy) {
   for (int i = 0; i < m && pick < 0; i++) if (*want && lang_match(ma[i].lang, want)) pick = i;
   for (int i = 0; i < m && pick < 0; i++) if (ma[i].def) pick = i;
   if (pick < 0) pick = 0;
+  if (best_dts_mode() == 1 && aud_kind(ma[pick].codec) == 1) { *copy = 0; return pick; }
   if (mkv_aud_bad(&ma[pick]) || !aud_copyable(ma[pick].codec))
     for (int i = 0; i < m; i++) if (!mkv_aud_bad(&ma[i]) && aud_copyable(ma[i].codec) && !strcasecmp(ma[i].lang, ma[pick].lang)) { pick = i; break; }
   if (!mkv_aud_bad(&ma[pick]) && aud_copyable(ma[pick].codec)) { *copy = 1; return pick; }
@@ -637,7 +644,7 @@ static void dts_conv_tick(void) {
     if (ci.indexed) video_load(url); else video_load_timed(url, ci.dur);
     return;
   }
-  if (P.dts.conv == 2 && P.dts.hevc && best_learned("hlsHevcOk") < 0) { /* HEVC in local HLS: plays here or not, learned once */
+  if (P.dts.conv == 2 && P.dts.hevc && best_learned("hlsHevcOk") != 1) { /* successful playback can repair an old negative observation */
     if (video_state() == VID_PLAYING && video_live()) { if (!P.dts.okAt) P.dts.okAt = now_(); else if (now_() - P.dts.okAt >= 3) best_learn("hlsHevcOk", 1); } else P.dts.okAt = 0; }
   if (P.dts.conv == 2 && P.dts.dv && !P.dts.dvSeen) { /* the converted picture: Dolby Vision on screen, or HDR10 all the same (then not converted again here) */
     if (video_state() == VID_PLAYING && video_live()) { if (!P.dts.dvAt) P.dts.dvAt = now_();
@@ -646,7 +653,7 @@ static void dts_conv_tick(void) {
         else if (now_() - P.dts.dvAt >= 15) P.dts.dvSeen = 1; } } /* (this TV doesn't say) */
     else P.dts.dvAt = 0; }
 }
-static void dts_conv_failed(const char *why) { /* the converted stream didn't play: today's reason, and HEVC from HLS is not tried again here */
+static void dts_conv_failed(const char *why) { /* a failure of this stream is not a permanent TV capability result */
   fprintf(stderr, "[dts] the converted stream didn't play (%s)\n", why);
   if (P.dts.dv) { /* the converted picture: not converted again on this TV; from here the file as it is, or (DTS) the sound alone converted */
     best_learn("dv81Hls", 0); hls_conv_stop(); P.dts.dv = 0;
@@ -654,7 +661,6 @@ static void dts_conv_failed(const char *why) { /* the converted stream didn't pl
     if (P.dts.copyA) { P.dts.conv = 0; video_load(P.url); return; }
     P.dts.conv = 1; P.dts.convAt = P.startAt; P.dts.convT0 = now_(); hls_conv_start(P.url, P.dts.convOrd, conv_flags(P.dts.convOrd));
     fprintf(stderr, "[dts] the sound alone converted from %.0f s\n", P.startAt); return; }
-  if (P.dts.hevc) best_learn("hlsHevcOk", 0);
   hls_conv_stop(); P.dts.conv = 0; P.dts.gaveUp = 1; fail(T("This TV can’t play this video’s sound (DTS or TrueHD)"));
 }
 /* Once a second while playing: the track the TV plays is checked against what this TV decodes. DTS still unknown here
@@ -674,6 +680,9 @@ static void dts_tick(void) {
   if (kind == 1 && !unsup && !best_dts_mode() && best_learned("dts") < 0 && video_state() == VID_PLAYING) { if (!P.dts.playAt) P.dts.playAt = now_(); else if (now_() - P.dts.playAt >= 3) { best_learn("dts", 1); fprintf(stderr, "[dts] auto: this TV plays DTS itself\n"); } }
   else P.dts.playAt = 0;
   if (!unsup && !aud_bad(t)) return;
+  /* Convert is an explicit request for this DTS track, before automatic replacement
+     with another (e.g. stereo) track. Auto retains the original fallback order. */
+  if (kind == 1 && best_dts_mode() == 1 && dts_convert(ci, "forced by setting")) return;
   const char *want = !strcmp(store_get("enableDefaultAudioTrack", "false"), "true") ? store_get("defaultAudioTrack", "") : "";
   int pick = -1, score = -1;
   for (int i = 0; i < n && P.dts.switches < 4; i++) { if (i == ci || aud_bad(&ts[i])) continue; /* (tracks the TV doesn't name: a few tries at most) */
