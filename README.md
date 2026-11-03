@@ -1,17 +1,13 @@
-# Origin range and cursor test build
+# Recovery build 1.0.3
 
-Add this repository to Homebrew Channel:
+Add / refresh this repository in Homebrew Channel:
 
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-Version 1.0.2 includes two changes over upstream 1.0.0: completed HTTP range connection reuse and webOS native cursor visibility with a 3-second idle timeout. Tests: 12 transport scenarios and 10 cursor scenarios, ARM build, existing crypto and Dolby Vision tests. TV playback/compositor behavior remains unverified.
+Version 1.0.3 withdraws the cursor modification from 1.0.1/1.0.2 after a report of system-wide cursor suppression requiring a TV restart. All cursor/application platform code is restored byte-for-byte to upstream source. Only src/core/net.c differs under src/: the HTTP-206 connection reuse fix remains.
 
-Original libraries, resources, licenses and embedded app configuration are retained. The application payload changes only the rebuilt executable and package version. Same app ID; no prior uninstall is needed. The built-in updater is unchanged and still targets upstream. Rollback: reinstall original 1.0.0 IPK.
+The original cursor may stay visible. The reported remote Play-key issue remains open; media-key handling is unchanged in this recovery build. Do not continue using 1.0.2. Install 1.0.3 as an update, without uninstalling.
 
-Source and analysis: https://github.com/pacev93/stremio/tree/0dff2cdeac8307208443f1bb02633044c980d961/docs/streaming-range-fix.md
+Validation: ARM build, 12 transport scenarios, original permissions for all 330 data archive entries, original libraries/resources/licenses/app configuration, and no withdrawn cursor API names in the rebuilt executable. Actual TV behavior still needs verification.
 
-## Startup correction in 1.0.2
-
-The first 1.0.1 package incorrectly carried mode 0704 for the executable. Version 1.0.2 restores every package entry mode from the original upstream IPK (executable 0755). The application binary is unchanged from 1.0.1. Final-archive permission checks reject 1.0.1 and pass 1.0.2. Actual TV startup still requires confirmation. Update through the same repository without uninstalling.
-
-Current source: https://github.com/pacev93/stremio/tree/f6111a387e89dce8c4fe1709bf0601b68ed2b89b/docs/streaming-range-fix.md
+The built-in updater still targets upstream. Source and investigation: https://github.com/pacev93/stremio/tree/7b705fa41fa0ca57c9447d07bf20e249aa4dedc2/docs/streaming-range-fix.md

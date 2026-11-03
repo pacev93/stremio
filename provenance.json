@@ -1,28 +1,30 @@
 {
-  "sourceCommit": "f6111a387e89dce8c4fe1709bf0601b68ed2b89b",
+  "sourceCommit": "7b705fa41fa0ca57c9447d07bf20e249aa4dedc2",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "cb5ce03fc4476efbb1ae12d8def0b5691261a1529306d7e2d7f6c4efcc9e8339",
+  "ipkSha256": "4e7f6be6b9da760b313a7caabc99ae3257eedcc0bd19a5020c2676bab35423db",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
   ],
   "productionSourceChanges": [
-    "src/core/net.c:range_data",
-    "src/core/app.c:pointer handlers",
-    "src/platform/plat.h:cursor interface",
-    "src/platform/webos/plat_webos.c:native cursor visibility",
-    "src/platform/mac/plat_mac.c:no-op cursor interface"
+    "src/core/net.c:range_data"
   ],
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
-  "cursorScenariosPassed": 10,
   "tvCursorValidated": false,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
-  "applicationBinaryUnchangedFrom": "1.0.1",
-  "tvStartupValidated": false
+  "tvStartupValidated": false,
+  "cursorStrategy": "Original upstream cursor behavior fully restored",
+  "tvFeedback": {
+    "1.0.2": {
+      "streaming": "User reports buffering appears resolved",
+      "cursor": "User reports system-wide suppression requiring TV restart; change withdrawn"
+    }
+  },
+  "playKeyStatus": "Reported; original key handling retained in recovery build"
 }
