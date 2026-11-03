@@ -36,20 +36,8 @@ def main(original, candidate):
             assert executable.mode & 0o055 == 0o055, 'App not readable/executable by group and other users'
             changed = sorted(n for n in actual if actual[n][1] != expected[n][1])
             allowed = [app + 'appinfo.json', app + 'stremioorigin',
-                       app + 'assets/i18n/de.json',
                        'usr/palm/packages/tv.stremioorigin.app/packageinfo.json']
             assert set(changed) <= set(allowed), f'Unexpected payload changes: {changed}'
-            language = app + 'assets/i18n/de.json'
-            if language in changed:
-                before = json.loads(expected[language][1]); after = json.loads(actual[language][1])
-                additions = {
-                    'Video buffer': 'Videopuffer',
-                    'Auto uses the TV default. Fixed targets apply to the next stream; the TV may limit them.':
-                        'Auto verwendet den TV-Standard. Feste Ziele gelten ab dem nächsten Stream; der TV kann sie begrenzen.',
-                    'Available on webOS 5 and 6': 'Auf webOS 5 und 6 verfügbar',
-                }
-                assert after == {**before, **additions}, 'Existing translations changed or unapproved translations added'
-                print('PASS German buffer setting: only the three requested new strings added')
             old = json.loads(expected[app + 'appinfo.json'][1])
             new = json.loads(actual[app + 'appinfo.json'][1])
             version = new['version']; new['version'] = old['version']
