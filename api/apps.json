@@ -1,0 +1,33 @@
+{
+  "paging": {
+    "page": 1,
+    "count": 1,
+    "maxPage": 1,
+    "itemsTotal": 1
+  },
+  "packages": [
+    {
+      "id": "tv.stremioorigin.app",
+      "title": "Stremio Origin",
+      "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
+      "pool": "main",
+      "manifestUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/manifest.json",
+      "shortDescription": "Origin 1.0.0 mit HTTP-Range- und Cursor-Fix (Testbuild).",
+      "fullDescriptionUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/full_description.html",
+      "manifest": {
+        "id": "tv.stremioorigin.app",
+        "version": "1.0.1",
+        "type": "native",
+        "title": "Stremio Origin",
+        "appDescription": "Testbuild: HTTP-Range- und Magic-Remote-Cursor-Fix auf Basis von Origin 1.0.0. TV-Pruefung noch ausstehend.",
+        "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
+        "sourceUrl": "https://github.com/pacev93/stremio/tree/0dff2cdeac8307208443f1bb02633044c980d961",
+        "rootRequired": false,
+        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.1_arm.ipk",
+        "ipkHash": {
+          "sha256": "bb4fcff4eb88dee1d0b85b13390f9044d61afe1b9f4c9ac3457b670dbf058892"
+        }
+      }
+    }
+  ]
+}
