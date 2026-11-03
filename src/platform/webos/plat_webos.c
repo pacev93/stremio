@@ -65,12 +65,6 @@ void plat_pre_init(const char *appId) {
   snprintf(devName, sizeof devName, "LG webOS %s", rel);
 }
 void plat_post_window(SDL_Window *w) { (void)w; }
-void plat_cursor_visible(int visible) {
-  /* Resolve the TV's real SDL, rather than adding a hard dependency on a newer export. */
-  static SDL_bool (*visibility)(SDL_bool); static int tried;
-  if (!tried) { tried = 1; *(void **)(&visibility) = dlsym(RTLD_DEFAULT, "SDL_webOSCursorVisibility"); }
-  if (!visibility || !visibility(visible ? SDL_TRUE : SDL_FALSE)) SDL_ShowCursor(visible ? SDL_ENABLE : SDL_DISABLE);
-}
 const char *plat_asset_dir(void) { return assetDir; }
 const char *plat_data_dir(void) { return dataDir; }
 void plat_window_size(int *w, int *h, Uint32 *flags) { *w = 1920; *h = 1080; *flags = SDL_WINDOW_OPENGL; /* measured on a 43LK5900 (webOS 4.4): with SDL_WINDOW_FULLSCREEN the compositor hands back a 1280x720 surface; without it, 1920x1080 */
