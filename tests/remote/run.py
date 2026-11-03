@@ -41,11 +41,11 @@ static int map(int sym, int sc) {
   return plat_map_key(&event);
 }
 int main(void) {
-  assert(map(415,SDL_SCANCODE_UNKNOWN)==K_PLAY);
-  assert(map(19,SDL_SCANCODE_UNKNOWN)==K_PAUSE);
-  assert(map(10252,SDL_SCANCODE_UNKNOWN)==K_PLAYPAUSE);
-  assert(map(415,SDL_SCANCODE_AUDIOPLAY)==K_PLAY);
-  puts("PASS LG raw Play/Pause/toggle values and distinct Play precedence");
+  /* LG's native SDL table maps Linux KEY_PLAY (207) to private scancode 450.
+     The symbol is zero on the documented firmware, so web keyCode 415 cannot help. */
+  assert(map(0,450)==K_PLAY);
+  assert(map(SDLK_SCANCODE_MASK|450,450)==K_PLAY);
+  puts("PASS native LG Play scancode 450, with absent or scancode-based symbol");
   assert(map(SDLK_AUDIOPLAY,SDL_SCANCODE_AUDIOPLAY)==K_PLAYPAUSE);
   assert(map(SDLK_PAUSE,SDL_SCANCODE_PAUSE)==K_PAUSE);
   assert(map(SDLK_LEFT,SDL_SCANCODE_LEFT)==K_LEFT);
@@ -55,15 +55,15 @@ int main(void) {
   assert(map(0,SDL_SCANCODE_UNKNOWN)==K_NONE);
   puts("PASS normalised SDL keys and existing navigation/cursor mappings retained");
   P.open=P.live=P.started=1;
-  player_key(map(19,SDL_SCANCODE_UNKNOWN),1);
+  player_key(map(SDLK_PAUSE,SDL_SCANCODE_PAUSE),1);
   assert(state==VID_PAUSED && pauses==1);
-  player_key(map(415,SDL_SCANCODE_UNKNOWN),1);
+  player_key(map(0,450),1);
   assert(state==VID_PLAYING && plays==1);
-  player_key(map(415,SDL_SCANCODE_UNKNOWN),1);
-  player_key(map(415,SDL_SCANCODE_UNKNOWN),0);
+  player_key(map(0,450),1);
+  player_key(map(0,450),0);
   assert(state==VID_PLAYING && plays==1 && pauses==1);
   puts("PASS Pause then Play resumes; repeated dedicated Play never pauses again");
-  player_key(map(10252,SDL_SCANCODE_UNKNOWN),1); assert(state==VID_PAUSED);
+  player_key(map(SDLK_AUDIOPLAY,SDL_SCANCODE_AUDIOPLAY),1); assert(state==VID_PAUSED);
   player_key(map(SDLK_AUDIOPLAY,SDL_SCANCODE_AUDIOPLAY),1); assert(state==VID_PLAYING);
   puts("PASS combined Play/Pause key still toggles");
   puts("4 media-key scenarios passed; actual remote event encoding not observed on TV");

@@ -30,16 +30,19 @@ Scr SCR = SCR_HOME;
 static double NOW;
 TopNav topNav = { .want = -1 };
 static int playing = 1;
+static int pointed, okDowns, okUps;
 static int saver_on(void) { return 0; }
 static void saver_stop(void) {}
 static int player_open(void) { return playing; }
-void player_ptr(int type, float x, float y) { (void)type; (void)x; (void)y; }
+void player_ptr(int type, float x, float y) { (void)type; (void)x; (void)y; pointed++; }
 static void idle_touch(void) {}
 static void idle_touch_by(const char *why) { (void)why; }
 int app_mirror_key(int k) { return k; }
 static Scr chipScr(int n) { (void)n; return SCR_HOME; }
 static void topnav_paint(void) {}
-static void key_core(int k, int down, int repeat) { (void)k; (void)down; (void)repeat; }
+static void key_core(int k, int down, int repeat) {
+  (void)repeat; if (k==K_OK) { if (down) okDowns++; else okUps++; }
+}
 const Hit *hit_at(float x, float y) { (void)x; (void)y; return NULL; }
 const Hit *hit_find(const Hit *like) { return like; }
 int hit_same(const Hit *a, const Hit *b) { return a == b; }
@@ -65,49 +68,85 @@ int main(void) {
   SDL_Cursor *blank = SDL_GetCursor();
   puts("PASS real SDL: idle swaps cursor image without disabling pointer input");
 
+  NOW = 14; app_pointer_move(PTR.x, PTR.y);
+  assert(!is_shown() && !PTR.on);
+  NOW = 14.1; app_pointer_system(1); app_pointer_move(2, 1); ptr_frame();
+  assert(!is_shown() && !PTR.on);
+  puts("PASS idle mode ignores same-position wake, tiny movement and show notices");
+
   SDL_Event motion; memset(&motion, 0, sizeof motion); motion.type = SDL_MOUSEMOTION;
   motion.motion.x = 100; motion.motion.y = 100;
   assert(SDL_PushEvent(&motion) == 1);
   SDL_Event event; int received = 0;
   while (SDL_PollEvent(&event)) if (event.type == SDL_MOUSEMOTION) {
-    NOW = 14; app_pointer_move(event.motion.x, event.motion.y); received++;
+    NOW = 14.2; app_pointer_move(event.motion.x, event.motion.y); received++;
   }
   assert(received && is_shown()); enabled();
-  puts("PASS real SDL: motion event reaches handler and restores original image");
+  puts("PASS real SDL: deliberate motion reaches handler and restores original image");
 
   NOW = 20; ptr_frame(); assert(SDL_GetCursor() == blank);
-  NOW = 21; app_pointer_move(PTR.x, PTR.y); assert(is_shown());
-  puts("PASS wake at unchanged coordinates restores image after idle");
+  NOW = 21; app_pointer_move(PTR.x, PTR.y); assert(!is_shown());
+  NOW = 21.1; app_pointer_move(PTR.x+80, PTR.y); assert(is_shown());
+  puts("PASS deliberate movement restores image after idle");
 
   NOW = 30; app_key(K_LEFT, 1, 0); assert(!is_shown());
   NOW = 30.1; app_pointer_system(1); assert(!is_shown());
-  NOW = 30.5; app_pointer_system(1); assert(is_shown());
-  puts("PASS arrow suppression expires; later system wake is accepted");
+  NOW = 30.5; app_pointer_system(1); assert(!is_shown());
+  int before=pointed;
+  float anchorX=PTR.x, anchorY=PTR.y;
+  for (int i=0;i<200;i++) {
+    NOW=30.6+i*.01; app_pointer_system(1);
+    app_pointer_move(anchorX+(i%3)-1,anchorY+(i%5)-2); ptr_frame();
+    assert(!is_shown() && !PTR.on && pointed==before);
+  }
+  puts("PASS arrow mode stays inactive across repeated show notices and hand tremor");
+  for (int i=0;i<12;i++) {
+    NOW=33+i*.5; app_pointer_move(anchorX+i*8,anchorY); ptr_frame();
+    assert(!is_shown() && !PTR.on && pointed==before);
+  }
+  puts("PASS isolated small motions do not accumulate into an accidental wake");
+  NOW=39; app_pointer_move(PTR.x,PTR.y);
+  NOW=39.1; app_pointer_move(PTR.x+80,PTR.y); assert(is_shown());
+  puts("PASS deliberate gesture leaves arrow mode and restores original cursor");
 
-  NOW = 40; ptr_frame(); assert(!is_shown());
+  NOW=40; app_key(K_DOWN,1,0); before=pointed;
+  NOW=41; app_pointer_button(1,PTR.x,PTR.y); app_key(K_OK,1,0);
+  app_pointer_button(0,PTR.x,PTR.y); app_key(K_OK,0,0);
+  assert(!is_shown() && !PTR.on && pointed==before && okDowns==1 && okUps==1);
+  NOW=42; app_key(K_OK,1,0); app_pointer_button(1,PTR.x,PTR.y);
+  app_key(K_OK,0,0); app_pointer_button(0,PTR.x,PTR.y);
+  assert(!is_shown() && pointed==before && okDowns==2 && okUps==2);
+  puts("PASS inactive clicks confirm keyboard focus once, in either event order");
+
+  NOW = 43; ptr_frame(); assert(!is_shown());
   focus(0); assert(is_shown()); enabled();
   NOW = 50; app_pointer_system(1); app_pointer_move(200, 100); ptr_frame();
   assert(is_shown() && PTR.suspended); enabled();
   puts("PASS focus loss restores image; background events cannot hide Home pointer");
   focus(1); assert(!PTR.suspended && is_shown());
+  NOW=50.5; app_key(K_LEFT,1,0); assert(!is_shown());
+  puts("PASS arrow after foreground return hides even before the first pointer event");
   NOW = 51; app_pointer_move(210, 100);
-  NOW = 54; ptr_frame(); assert(!is_shown());
-  NOW = 55; app_pointer_button(1, 210, 100); assert(is_shown());
+  NOW=51.1; app_pointer_move(290,100); assert(is_shown());
+  NOW = 52; app_pointer_button(1, 290, 100); assert(is_shown());
   NOW = 61; ptr_frame(); assert(is_shown());
-  app_pointer_button(0, 210, 100);
+  app_pointer_button(0, 290, 100);
   NOW = 64; ptr_frame(); assert(!is_shown());
-  NOW = 65; app_pointer_button(1, 210, 100); assert(PTR.down);
+  NOW = 65; app_pointer_move(300,100);
+  NOW = 65.1; app_pointer_move(380,100); assert(is_shown());
+  app_pointer_button(1,380,100); assert(PTR.down);
   focus(0); focus(1); assert(!PTR.down && is_shown());
-  NOW = 66; app_pointer_move(211, 100);
+  NOW = 66; app_pointer_move(390, 100);
   NOW = 69; ptr_frame(); assert(!is_shown());
   puts("PASS foreground return and held click preserve wake/idle behavior");
 
-  playing = 0; NOW = 70; app_pointer_move(220, 100); assert(is_shown());
-  NOW = 73; ptr_frame(); assert(!is_shown());
+  playing = 0; NOW = 70; app_pointer_move(400, 100);
+  NOW=70.1; app_pointer_move(480,100); assert(is_shown());
+  NOW = 73.1; ptr_frame(); assert(!is_shown());
   app_pointer_focus(0); assert(is_shown()); enabled();
   SDL_DestroyWindow(win); SDL_Quit();
   puts("PASS menu idle and exit restore original pointer image");
-  puts("7 real-SDL pointer scenarios passed; LG TV verification still required");
+  puts("12 real-SDL pointer scenarios passed; LG TV verification still required");
   return 0;
 }
 '''
@@ -192,7 +231,7 @@ def main():
                         '-Werror=implicit-function-declaration',str(failures),'-o',str(failbin)],check=True)
         for mode in range(8):
             subprocess.run([str(failbin),str(mode)],check=True)
-        print('15 cursor scenarios passed: 7 real-SDL, 8 controlled backend/failure cases')
+        print('20 cursor scenarios passed: 12 real-SDL, 8 controlled backend/failure cases')
 
 
 if __name__ == '__main__':

@@ -93,13 +93,6 @@ const char *plat_data_dir(void) { return dataDir; }
 void plat_window_size(int *w, int *h, Uint32 *flags) { *w = 1920; *h = 1080; *flags = SDL_WINDOW_OPENGL; /* measured on a 43LK5900 (webOS 4.4): with SDL_WINDOW_FULLSCREEN the compositor hands back a 1280x720 surface; without it, 1920x1080 */
   const char *v = getenv("SB_WIN"); if (v) { int a, b, f; if (sscanf(v, "%dx%d:%d", &a, &b, &f) == 3) { *w = a; *h = b; *flags = SDL_WINDOW_OPENGL | (f & 1 ? SDL_WINDOW_FULLSCREEN : 0) | (f & 2 ? SDL_WINDOW_ALLOW_HIGHDPI : 0) | (f & 4 ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0); } } /* SB_WIN=3840x2160:2 to try other surface requests */ }
 int plat_map_key(const SDL_KeyboardEvent *e) {
-  /* LG media values may arrive without SDL's normalised symbol/scancode. */
-  switch (e->keysym.sym) {
-    case 415: return K_PLAY;
-    case 19: return K_PAUSE;
-    case 10252: return K_PLAYPAUSE;
-    default: break;
-  }
   switch (e->keysym.scancode) {
     case SDL_WEBOS_SCANCODE_BACK: return K_BACK;
     case SDL_WEBOS_SCANCODE_RED: return K_RED; case SDL_WEBOS_SCANCODE_GREEN: return K_GREEN;
@@ -107,9 +100,10 @@ int plat_map_key(const SDL_KeyboardEvent *e) {
     case SDL_WEBOS_SCANCODE_CH_UP: return K_CH_UP; case SDL_WEBOS_SCANCODE_CH_DOWN: return K_CH_DOWN;
     case SDL_WEBOS_SCANCODE_CURSOR_SHOW: return K_CURSOR_SHOW; case SDL_WEBOS_SCANCODE_CURSOR_HIDE: return K_CURSOR_HIDE;
     case SDL_WEBOS_SCANCODE_EXIT: return K_EXIT;
-    /* media keys come through SDL's Linux table: Play (web 415, KEY_PLAY) and the single play/pause key (10252,
-       KEY_PLAYPAUSE) both arrive as AUDIOPLAY and cannot be told apart, so it toggles (Play on a paused film plays,
-       as 415 does); Pause (19, KEY_PAUSE) is PAUSE */
+    /* LG's native SDL extends its Linux table: KEY_PLAY -> 450 (often sym=0).
+       These are SDL scancodes, distinct from web-app keyCode values such as 415. */
+    case 450: return K_PLAY;
+    /* The combined Play/Pause button keeps SDL's normalised AUDIOPLAY mapping. */
     case SDL_SCANCODE_AUDIOPLAY: return K_PLAYPAUSE;
     case SDL_SCANCODE_PAUSE: return K_PAUSE;
     case SDL_SCANCODE_AUDIOSTOP: case SDL_SCANCODE_STOP: return K_STOP;

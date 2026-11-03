@@ -763,17 +763,23 @@ static void key_core(int k, int down, int repeat);
    and released (held on a card: its menu); a few targets act on release (a tab, a chip, the seek bar, beside a
    sheet = close it); a sheet's body absorbs a click. A click and an OK key within 150 ms are one press. The
    wheel is Up/Down, one step per notch (70 ms apart at most). An arrow key puts the pointer away; it comes
-   back only with a real movement: nothing in the first 350 ms, then 32 px from where the hand started again. */
+   back only with a deliberate movement: nothing in the first 350 ms, then 64 px in one gesture.
+   Idle and arrow mode ignore show notices: a transparent image alone must not leave an active pointer behind. */
 #define PTR_SETTLE 0.15
 #define PTR_DEDUPE 0.15
 #define PTR_WHEEL 0.07
 #define PTR_ARROW_WIN 0.35
-#define PTR_ARROW_DIST 32
+#define PTR_ARROW_DIST 64
 #define PTR_ARROW_PAUSE 0.3
 #define PTR_IDLE_S 3.0
 static struct { int on; float x, y; Hit hv; int hasHv; float hx, hy; double movedAt; int down, downAct; Hit act; double okKeyAt, clickAt, wheelAt; int eatUp, eatOk, arrowHid; double arrowAt; int anchor; float ax, ay; double tremAt; int dirty; double usedAt; int suspended; } PTR;
 static void ptr_show(void) { PTR.arrowHid = 0; if (PTR.on) return; PTR.on = 1; PTR.hasHv = 0; PTR.usedAt = NOW; plat_pointer_image(1); }
-static void ptr_hide(void) { if (!PTR.on) return; PTR.on = 0; PTR.hasHv = 0; plat_pointer_image(0); }
+static void ptr_hide(void) {
+  if (PTR.suspended) return;
+  PTR.on = 0; PTR.hasHv = 0; PTR.dirty = 0;
+  PTR.arrowHid = 1; PTR.arrowAt = NOW; PTR.anchor = 0;
+  plat_pointer_image(0);
+}
 static int ptr_tremor(double now) { if (!PTR.arrowHid) return 0; if (now - PTR.arrowAt < PTR_ARROW_WIN) return 1;
   if (!PTR.anchor || now - PTR.tremAt > PTR_ARROW_PAUSE) { PTR.anchor = 1; PTR.ax = PTR.x; PTR.ay = PTR.y; } PTR.tremAt = now; float dx = PTR.x - PTR.ax, dy = PTR.y - PTR.ay; return dx * dx + dy * dy < PTR_ARROW_DIST * PTR_ARROW_DIST; }
 static void ptr_nav_back(void) { if (topNav.want >= 0) return; Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; for (int j = 2; j < 5; j++) if (chipScr(j) == cur && topNav.idx != j) { topNav.idx = j; topnav_paint(); } }
@@ -800,9 +806,11 @@ void app_pointer_button(int down, float x, float y) {
   if (PTR.suspended) return;
   double now = NOW; PTR.x = x; PTR.y = y; PTR.usedAt = now;
   if (saver_on()) return; /* the screensaver covers the page: nothing under it is pressed */
-  if (down) { ptr_show(); idle_touch();
+  if (down) { idle_touch();
     if (PTR.okKeyAt && now - PTR.okKeyAt < PTR_DEDUPE) { PTR.eatUp = 1; return; } /* the OK key of this same press came first */
     PTR.clickAt = now;
+    if (PTR.arrowHid) { PTR.down = 1; key_core(K_OK, 1, 0); return; } /* inactive pointer: confirm the keyboard focus */
+    ptr_show();
     if (player_open()) { extern void player_ptr(int type, float x, float y); PTR.down = 2; player_ptr(1, x, y); return; }
     const Hit *d = hit_at(x, y); if (!d) return;
     if (d->act) { PTR.down = 3; PTR.act = *d; return; }
@@ -820,7 +828,7 @@ void app_pointer_wheel(float dx, float dy) { double now = NOW; if (PTR.suspended
 void app_pointer_system(int show) {
   if (PTR.suspended) return;
   if (!show) { ptr_hide(); return; }
-  if (PTR.arrowHid && NOW - PTR.arrowAt < PTR_ARROW_WIN) return;
+  if (PTR.arrowHid) return; /* a notice is not the deliberate gesture that leaves keyboard/idle mode */
   ptr_show();
 }
 void app_pointer_focus(int active) {
@@ -834,7 +842,7 @@ void app_key(int k, int down, int repeat) {
   if (down && k == K_OK && !repeat) { if (PTR.eatOk || PTR.down || (PTR.clickAt && NOW - PTR.clickAt < PTR_DEDUPE)) { PTR.eatOk = 1; return; } PTR.okKeyAt = NOW; } /* the click of this same press came first */
   if (!down && k == K_OK && PTR.eatOk) { PTR.eatOk = 0; return; }
   if (down && saver_on() && k != K_CURSOR_SHOW && k != K_CURSOR_HIDE) { saver_stop(); idle_touch(); if (k == K_OK) PTR.eatOk = 1; return; } /* the key that wakes the screensaver does nothing else */
-  if (down && k >= K_LEFT && k <= K_DOWN) { ptr_hide(); PTR.arrowHid = 1; PTR.arrowAt = NOW; PTR.anchor = 0; } /* every arrow re-arms it, hidden or not */
+  if (down && k >= K_LEFT && k <= K_DOWN) ptr_hide(); /* every arrow re-arms it, hidden or not */
   key_core(k, down, repeat);
 }
 /* where the focus is, as far as can be told from outside: the screen, the open sheet, the top bar, the centre of

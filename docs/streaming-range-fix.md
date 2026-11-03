@@ -1,9 +1,11 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.4
+## Aktueller Stand: 1.0.5
 
-Version 1.0.4 behält den HTTP-Range-Fix bei und ergänzt die ausdrücklich
-angefragten Korrekturen für Cursor, DTS-Konvertierung und die Play-Taste.
+Version 1.0.5 behält den HTTP-Range-Fix und die DTS-Korrekturen aus 1.0.4 bei.
+Der Nutzer bestätigt, dass die gewünschte DTS-zu-Dolby-Konvertierung mit 1.0.4
+funktioniert. Die noch fehlerhaften Cursor- und Play-Tasten-Fälle werden
+gezielt nachgebessert; der Player-/Konvertercode bleibt gegenüber 1.0.4 unverändert.
 Ausgangspunkt bleibt das Original 1.0.0, Commit
 `051818e55cf38caed42d597fbcb05bdd3fc5bbd9`. Der übrige Funktionsumfang und die
 Originalressourcen bleiben erhalten. Es gibt keinen zusätzlichen Read-Ahead-Proxy.
@@ -20,7 +22,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.4 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.5 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -28,9 +30,21 @@ Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
 Nach drei Sekunden ohne Zeigerbedienung oder bei Pfeiltasten wird über
 `SDL_CreateCursor`/`SDL_SetCursor` ein transparentes Cursorbild verwendet.
-Bewegung, Klick oder eine spätere Cursor-Show-Meldung stellt das zuvor gesicherte
-Bild wieder her. Die kurze Unterdrückung unmittelbar nach Pfeiltasten läuft
-nach 350 ms aus; eine spätere Show-Meldung wird wieder akzeptiert.
+1.0.4 konnte die Sperre nach 350 ms durch eine spätere Cursor-Show-Meldung
+verlieren. Danach aktivierte die kleinste Bewegung den Zeiger wieder. Außerdem
+konnte ein Klick trotz unsichtbarem Bild noch den alten Zeigerort bedienen.
+
+1.0.5 hält den Zeigermodus nach dem Ausblenden gesperrt: Show-Meldungen allein
+aktivieren ihn nicht. In den ersten 350 ms werden Bewegungen ignoriert; danach
+braucht es mindestens 64 Layout-Pixel Abstand vom Anfang einer zusammenhängenden
+Bewegung. Pausen über 300 ms setzen diesen Anfang zurück, sodass vereinzelte
+kleine Bewegungen sich nicht aufsummieren. Kleine Handbewegungen verändern weder
+den Fokus noch die Player-Bedienelemente. Ein Klick im inaktiven Modus bestätigt
+den aktuellen Tastaturfokus, ohne den Zeiger zu aktivieren; doppelte OK-/Maus-
+Ereignisse derselben Fernbedienung werden weiterhin zusammengefasst. Erst die
+deutliche Bewegung stellt das gesicherte Cursorbild und die Zeigerbedienung
+wieder her. Dies ist eine lokale Gestenerkennung anhand der SDL-Bewegungen,
+keine Änderung des Bewegungssensors der Fernbedienung.
 
 `SDL_webOSCursorVisibility` und `SDL_ShowCursor` werden nicht aufgerufen oder
 dynamisch aufgelöst. Der Bewegungseingang bleibt eingeschaltet. Beim Verlassen
@@ -40,9 +54,10 @@ ein beim Fokuswechsel gehaltener Klick wird zurückgesetzt. Falls SDL kein
 wiederherstellbares Originalbild oder keinen transparenten Cursor bereitstellt,
 bleibt der vorhandene Zeiger unverändert.
 
-Sieben Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
-Bildwechsel, Bewegungseingang, Aufwecken, Pfeiltasten, Fokuswechsel, gehaltene
-Klicks und Beenden. Acht zusätzliche Backend-Fälle prüfen fehlende Funktionen,
+Zwölf Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
+Bildwechsel, absichtliches Aufwecken, kleine Bewegungen, wiederholte
+Show-Meldungen, Klicks im Tastenmodus in beiden Ereignisreihenfolgen,
+Fokuswechsel, gehaltene Klicks und Beenden. Acht zusätzliche Backend-Fälle prüfen fehlende Funktionen,
 fehlendes Originalbild, fehlgeschlagene Erstellung und die Wiederherstellung
 eines benutzerdefinierten Bilds. Das ist kein Nachweis für den geschlossenen
 LG-Compositor; die Darstellung und das Wiederauftauchen auf dem CX bleiben
@@ -79,14 +94,24 @@ keine Datei und ersetzen keinen Wiedergabetest auf dem Fernseher.
 
 ## Separate Play-Taste
 
-Die webOS-Tastenzuordnung erkennt nun auch LGs rohe Werte 415 (Play),
-19 (Pause) und 10252 (Play/Pause). Ein separates Play bleibt Play, auch wenn
-SDL zusätzlich den allgemeinen AudioPlay-Scancode liefert. Die normalisierten
-SDL-Tasten und der kombinierte Play/Pause-Schalter bleiben unterstützt.
-Vier Fälle prüfen die tatsächliche Zuordnung zusammen mit den Medienzweigen
-des Players, darunter Pause → Play und wiederholtes Play ohne erneutes
-Pausieren. Welche Ereignisse die konkrete Fernbedienung liefert, wurde nicht
-am TV aufgezeichnet.
+Der Nutzer bestätigt, dass Play mit den separaten Tasten der Magic Remote
+auch ohne DTS-Konvertierung ausfällt, während Pause zuverlässig funktioniert.
+Die in 1.0.4 ergänzten Werte 415/19/10252 gehören zur Web-App-Tastencode-Welt
+und erklärten die native LG-SDL-Zuordnung nicht.
+
+Die [öffentliche Dokumentation einer ausgelesenen LG-SDL-Tabelle](https://github.com/GLinnik21/plx-native/blob/579f44b97c7de6cc5274e76983eb608f638a7747/docs/remote-keys.md)
+weist für die separate Play-Taste den privaten SDL-Scancode **450** aus
+(Linux `KEY_PLAY`, 207); das Symbol kann dabei null sein. Die unveränderte
+Pause-Taste verwendet den normalen SDL-Scancode 72. 1.0.5 ergänzt gezielt 450
+als `K_PLAY` und entfernt die Web-Tastencode-Ergänzung aus 1.0.4.
+Die normalisierten SDL-Tasten und der kombinierte Play/Pause-Schalter bleiben
+unterstützt. Vier Fälle prüfen die tatsächliche Zuordnung zusammen mit den
+Medienzweigen des Players, darunter Pause → Play und wiederholtes Play ohne
+erneutes Pausieren. Die Referenztabelle stammt von einer anderen LG-Firmware;
+welche Ereignisse der konkrete CX liefert, wurde nicht am TV aufgezeichnet.
+Medien- und unbekannte private Scancodes werden nun auch nach dem Startfenster
+im bestehenden App-Log protokolliert. Texteingaben und PIN-Tasten werden durch
+diese zusätzliche Protokollierung nicht erfasst.
 
 ## Warum das Buffering wahrscheinlich besser wurde
 
@@ -177,7 +202,7 @@ python3 tests/package/check.py original-1.0.0.ipk candidate.ipk
 
 Die zwölf Transportfälle umfassen feste und Chunked-Antworten, Wiederverwendung,
 Redirects, Dateiende, ignorierte/falsche Ranges, unterbrochene/überlange
-Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 15 Cursor-, 14 Audio-
+Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 20 Cursor-, 14 Audio-
 und vier Medien-Tasten-Fälle. Der Cursor-Test benötigt echte SDL2 sowie eine
 lokale X-Anzeige (hier `:97`, gegebenenfalls mit `XAUTHORITY`); er verwendet
 keinen abgeschalteten Zeiger. Das ausgelieferte Programm wird auf das Fehlen
