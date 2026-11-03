@@ -1,14 +1,14 @@
 {
   "id": "tv.stremioorigin.app",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "native",
   "title": "Stremio Origin",
-  "appDescription": "Testbuild: HTTP-Range- und Magic-Remote-Cursor-Fix auf Basis von Origin 1.0.0. TV-Pruefung noch ausstehend.",
+  "appDescription": "Testbuild 1.0.2: Startrechte korrigiert; HTTP-Range- und Magic-Remote-Cursor-Fix auf Basis von Origin 1.0.0. TV-Pruefung ausstehend.",
   "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-  "sourceUrl": "https://github.com/pacev93/stremio/tree/0dff2cdeac8307208443f1bb02633044c980d961",
+  "sourceUrl": "https://github.com/pacev93/stremio/tree/f6111a387e89dce8c4fe1709bf0601b68ed2b89b",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.1_arm.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.2_arm.ipk",
   "ipkHash": {
-    "sha256": "bb4fcff4eb88dee1d0b85b13390f9044d61afe1b9f4c9ac3457b670dbf058892"
+    "sha256": "cb5ce03fc4476efbb1ae12d8def0b5691261a1529306d7e2d7f6c4efcc9e8339"
   }
 }

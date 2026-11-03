@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "0dff2cdeac8307208443f1bb02633044c980d961",
+  "sourceCommit": "f6111a387e89dce8c4fe1709bf0601b68ed2b89b",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "bb4fcff4eb88dee1d0b85b13390f9044d61afe1b9f4c9ac3457b670dbf058892",
+  "ipkSha256": "cb5ce03fc4476efbb1ae12d8def0b5691261a1529306d7e2d7f6c4efcc9e8339",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
@@ -19,5 +19,10 @@
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "cursorScenariosPassed": 10,
-  "tvCursorValidated": false
+  "tvCursorValidated": false,
+  "version": "1.0.2",
+  "packagePermissionEntriesVerified": 330,
+  "packagePermissionReference": "upstream 1.0.0",
+  "applicationBinaryUnchangedFrom": "1.0.1",
+  "tvStartupValidated": false
 }
