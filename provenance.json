@@ -1,41 +1,49 @@
 {
-  "sourceCommit": "96ec8a0d2a20265e9c5d791480b6965b07389205",
+  "sourceCommit": "b5bd045d4ab2e6fd9ee433b82b4975b4c6b4bbc9",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "91605829ac0847dd7fb7d491552aa3bf7f793686d9827b5dd30f6cb0edc945bc",
+  "ipkSha256": "156355e53b59714bbe05b36cd8e062d71a60f9e2d300cbdb2f4175e69f0d6542",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
   ],
   "productionSourceChanges": [
-    "src/core/net.c: complete HTTP 206 ranges retain connection reuse (unchanged from 1.0.3)",
-    "src/core/app.c and app.h: cursor image idle/wake and foreground state",
-    "src/main.c: cursor focus and normal-exit restoration",
-    "src/platform/plat.h and mac/plat_mac.c: cursor image interface and Mac no-op",
-    "src/platform/webos/plat_webos.c: SDL cursor images and raw LG media-key values",
-    "src/screens/player.c: forced DTS conversion, language/track priority and recovery from old HEVC/HLS negatives"
+    "src/core/net.c: complete HTTP 206 ranges retain connection reuse (unchanged from 1.0.4)",
+    "src/core/app.c and app.h: cursor image idle/wake, inactive keyboard mode and foreground state",
+    "src/main.c: cursor focus/exit restoration and media/private-key diagnostics",
+    "src/platform/plat.h and mac/plat_mac.c: cursor image interface and Mac no-op (unchanged from 1.0.4)",
+    "src/platform/webos/plat_webos.c: SDL cursor images; native private Play scancode 450",
+    "src/screens/player.c: forced DTS conversion and old HEVC/HLS negative recovery (unchanged from 1.0.4)"
   ],
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
-  "cursorStrategy": "Transparent SDL cursor image; restore original on wake/focus loss/exit; no cursor visibility policy API",
+  "cursorStrategy": "Transparent image plus inactive input mode; ignore show notices/tremor; wake on deliberate 64-layout-pixel motion; restore original on focus loss/exit",
   "tvFeedback": {
     "1.0.2": {
       "streaming": "User reports buffering appears resolved",
       "cursor": "User reports system-wide suppression requiring TV restart; change withdrawn"
+    },
+    "1.0.4": {
+      "dtsForce": "User confirms DTS to Dolby conversion works as requested",
+      "play": "Separate Magic Remote Play fails, including direct AAC/AC3 playback; Pause works",
+      "cursor": "Hides as requested but small motion reactivates it during arrow-key use"
     }
   },
-  "playKeyStatus": "Raw LG 415/19/10252 handled; actual TV events not observed",
-  "cursorScenariosPassed": 15,
-  "realDesktopSdlCursorScenariosPassed": 7,
+  "playKeyStatus": "Native private LG SDL scancode 450 mapped to Play; separate Pause and normalised toggle retained; CX event capture pending",
+  "cursorScenariosPassed": 20,
+  "realDesktopSdlCursorScenariosPassed": 12,
   "cursorBackendScenariosPassed": 8,
   "audioPolicyScenariosPassed": 14,
   "mediaKeyScenariosPassed": 4,
-  "audioValidationScope": "Actual player decisions with stubbed media/transport boundaries; no media decoding or TV playback"
+  "audioValidationScope": "Actual player decisions with stubbed media/transport boundaries; no media decoding or TV playback",
+  "playKeyReference": "https://github.com/GLinnik21/plx-native/blob/579f44b97c7de6cc5274e76983eb608f638a7747/docs/remote-keys.md",
+  "playerSourceUnchangedFromVersion": "1.0.4",
+  "tvPlayKeyValidated": false
 }

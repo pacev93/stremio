@@ -1,14 +1,14 @@
 {
   "id": "tv.stremioorigin.app",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "native",
   "title": "Stremio Origin",
-  "appDescription": "1.0.4: Neuer Cursorfix, erzwungene DTS-Umwandlung und Play-Taste; Streaming-Fix bleibt erhalten.",
+  "appDescription": "1.0.5: Separate LG-Play-Taste und inaktiver Cursor bei Tastenbedienung; DTS- und Streaming-Fix bleiben erhalten.",
   "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-  "sourceUrl": "https://github.com/pacev93/stremio/tree/96ec8a0d2a20265e9c5d791480b6965b07389205",
+  "sourceUrl": "https://github.com/pacev93/stremio/tree/b5bd045d4ab2e6fd9ee433b82b4975b4c6b4bbc9",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.4_arm.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.5_arm.ipk",
   "ipkHash": {
-    "sha256": "91605829ac0847dd7fb7d491552aa3bf7f793686d9827b5dd30f6cb0edc945bc"
+    "sha256": "156355e53b59714bbe05b36cd8e062d71a60f9e2d300cbdb2f4175e69f0d6542"
   }
 }

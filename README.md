@@ -1,17 +1,15 @@
-# Testversion 1.0.4
+# Testversion 1.0.5
 
-Bestehende Repository-Adresse im Homebrew Channel aktualisieren:
+Bestehende Adresse im Homebrew Channel aktualisieren:
 
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-1.0.4 enthält den bestehenden HTTP-206-Verbindungsfix, einen neuen Cursorbild-Wechsel, die Korrektur der erzwungenen DTS-Konvertierung und zusätzliche LG-Medientastenwerte. Als Update installieren, ohne vorher zu deinstallieren.
+1.0.5 ergänzt den nativen LG-Play-Scancode 450 und verbessert den inaktiven Cursor nach Pfeiltasten und automatischem Ausblenden. Einzelne kleine Bewegungen und Cursor-Show-Meldungen aktivieren den Zeiger nicht. Erst eine deutliche zusammenhängende Bewegung stellt die Zeigerbedienung wieder her. Klicks im inaktiven Modus bestätigen den Tastaturfokus und treffen keinen unsichtbaren Zeigerort.
 
-Der Cursorfix tauscht nur das Bild gegen ein transparentes Bild aus und stellt es bei Bewegung, Fokusverlust und regulärem Beenden wieder her. Die verworfenen Cursor-Sichtbarkeits-APIs werden nicht verwendet. Falls die Cursorbild-Funktionen nicht verfügbar sind, bleibt der normale Zeiger erhalten.
+Der Bildwechsel mit transparentem Cursor, die Wiederherstellung beim Fokusverlust und die übrigen Schutzmaßnahmen aus 1.0.4 bleiben erhalten. Keine Cursor-Sichtbarkeits-API wird aufgerufen. Die separate Play-Taste verwendet eine dokumentierte private LG-SDL-Zuordnung; die bisherigen Web-App-Tastencodes wurden entfernt. Medien-/private Tastencodes werden im bestehenden App-Log protokolliert, ohne zusätzliche Protokollierung von Text- oder PIN-Eingaben.
 
-Die DTS-Einstellung „Umwandeln“ übergeht eine früher gespeicherte negative HEVC/HLS-Beobachtung. Ein einzelner Wiedergabefehler sperrt künftige Versuche nicht dauerhaft. Gewähltes DTS wird vor automatischen Ersatzspuren konvertiert, auch bei automatischer Sprachauswahl. Die Konverterbibliothek ist unverändert; Mehrkanal-DTS wird als AC3 5.1 ausgegeben, Stereo bleibt Stereo.
+Der Nutzer bestätigt DTS-zu-Dolby mit 1.0.4. Player-/Konverter- und Streamingcode sind gegenüber 1.0.4 unverändert. Originalbibliotheken, Ressourcen, Lizenzen und eingebettete App-Konfiguration bleiben erhalten. Als Update installieren, ohne vorher zu deinstallieren. Der eingebaute Updater bleibt auf dem Originalprojekt.
 
-Prüfungen: ARM-Build, 12 Transportfälle, 15 Cursorfälle (7 mit echter Desktop-SDL, 8 mit kontrollierten Backend-/Fehlergrenzen), 14 Audioentscheidungen, 4 Medien-Tasten-Fälle sowie alle 330 Paketeinträge gegen das Original. Originalbibliotheken, Ressourcen, Lizenzen und eingebettete App-Konfiguration bleiben erhalten. Die Tests bilden den LG-Compositor und die tatsächliche Medienwiedergabe nicht nach; ein Test auf dem TV steht aus.
+Prüfungen: ARM-Build, 20 Cursorfälle (12 mit echter Desktop-SDL, 8 Backend-/Fehlerfälle), 4 Medien-Tasten-Fälle, 14 unveränderte Audioprüfungen und 12 Transportfälle. Alle 330 Daten-Einträge haben die Originalberechtigungen. Die Testanzeige emuliert den LG-Compositor nicht; die Play-Referenztabelle stammt von anderer LG-Firmware. Die Bestätigung auf dem CX steht aus.
 
-1.0.1/1.0.2 hatten einen Cursorfehler mit systemweiten Nebenwirkungen. Dieser wurde in 1.0.3 zurückgenommen; 1.0.4 verwendet einen anderen Weg. Der eingebaute Updater bleibt auf dem Originalprojekt.
-
-Quellcode und Analyse: https://github.com/pacev93/stremio/tree/96ec8a0d2a20265e9c5d791480b6965b07389205/docs/streaming-range-fix.md
+Quellcode und Analyse: https://github.com/pacev93/stremio/tree/b5bd045d4ab2e6fd9ee433b82b4975b4c6b4bbc9/docs/streaming-range-fix.md
