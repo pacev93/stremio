@@ -1,6 +1,6 @@
-<p><b>Testversion 1.0.5</b></p>
-<p>Die separate Play-Taste der LG Magic Remote wird über ihre native SDL-Zuordnung erkannt. Pause und der kombinierte Play/Pause-Schalter bleiben unterstützt.</p>
-<p>Nach Pfeiltasten oder dem automatischen Ausblenden bleibt der Cursor bei kleinen Bewegungen inaktiv. Erst eine deutliche Bewegung aktiviert ihn wieder. Ein Klick im inaktiven Modus bestätigt den mit den Pfeiltasten gewählten Eintrag. Beim Wechsel in den LG-Homebildschirm wird das ursprüngliche Cursorbild wiederhergestellt.</p>
-<p>Die funktionierende DTS-Konvertierung und der Streaming-Fix aus 1.0.4 sind unverändert. Als Update installieren, ohne vorher zu deinstallieren.</p>
-<p>Build, gezielte Eingabetests und Paketberechtigungen sind geprüft. Die Bestätigung der neuen Eingabefälle auf dem CX steht noch aus. Der eingebaute Updater verweist weiterhin auf das Originalprojekt.</p>
-<p><a href="https://github.com/pacev93/stremio/tree/b5bd045d4ab2e6fd9ee433b82b4975b4c6b4bbc9/docs/streaming-range-fix.md">Quellcode, Analyse und Prüfungen</a></p>
+<p><b>Testversion 1.0.6</b></p>
+<p>Nach dem automatischen Ausblenden oder Pfeiltasten wird der Cursor ausschließlich durch Drehen am Scrollrad wieder aktiv. Bewegung allein aktiviert ihn nicht. Die erste Rastung weckt den Zeiger, weitere Rastungen behalten die bisherige Navigation bei.</p>
+<p>Neu unter Einstellungen → Wiedergabe → Videopuffer: Auto, 10 s, 20 s oder 30 s. Auto bleibt der Standard. Auf webOS 5/6 werden feste Zeit-Ziele für entfernte HTTP-Streams angefordert. Änderungen gelten ab dem nächsten Stream. Für einen Vergleich zunächst Auto und dann 20 s mit derselben Datei testen.</p>
+<p>Der TV kann die Ziele begrenzen oder für direkte MKVs ignorieren. Die Einstellung reserviert keine feste MB-Menge. Bei abgelehntem Profil oder Startproblemen fällt die App einmal auf die Originaloptionen zurück. Bereits laufende Filme werden wegen späterer Dips nicht neu gestartet. Der lokale DTS-Konverter bleibt bei seinen bisherigen Pufferoptionen.</p>
+<p>Die bisherigen DTS-, Play- und Streaming-Korrekturen bleiben erhalten. Als Update installieren, ohne vorher zu deinstallieren. Build, gezielte Tests und Paketberechtigungen sind geprüft; die tatsächliche Pufferwirkung und neue Cursorsteuerung am CX bleiben zu bestätigen.</p>
+<p><a href="https://github.com/pacev93/stremio/tree/c6f88c7a5e382bb53ce67dca5b20d6139d968432/docs/streaming-range-fix.md">Quellcode, Pufferanalyse und Prüfungen</a></p>

@@ -1,15 +1,17 @@
-# Testversion 1.0.5
+# Testversion 1.0.6
 
 Bestehende Adresse im Homebrew Channel aktualisieren:
 
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-1.0.5 ergänzt den nativen LG-Play-Scancode 450 und verbessert den inaktiven Cursor nach Pfeiltasten und automatischem Ausblenden. Einzelne kleine Bewegungen und Cursor-Show-Meldungen aktivieren den Zeiger nicht. Erst eine deutliche zusammenhängende Bewegung stellt die Zeigerbedienung wieder her. Klicks im inaktiven Modus bestätigen den Tastaturfokus und treffen keinen unsichtbaren Zeigerort.
+Nach Ausblenden bleibt der Cursor gesperrt, bis das Scrollrad gedreht wird. Bewegung, Cursor-Show-Meldungen und OK aktivieren ihn nicht. Home bekommt beim Fokuswechsel das ursprüngliche Cursorbild; die App-Sperre bleibt bei der Rückkehr erhalten. Keine globale Cursor-Sichtbarkeits-API wird verwendet.
 
-Der Bildwechsel mit transparentem Cursor, die Wiederherstellung beim Fokusverlust und die übrigen Schutzmaßnahmen aus 1.0.4 bleiben erhalten. Keine Cursor-Sichtbarkeits-API wird aufgerufen. Die separate Play-Taste verwendet eine dokumentierte private LG-SDL-Zuordnung; die bisherigen Web-App-Tastencodes wurden entfernt. Medien-/private Tastencodes werden im bestehenden App-Log protokolliert, ohne zusätzliche Protokollierung von Text- oder PIN-Eingaben.
+Neu: Einstellungen → Wiedergabe → Videopuffer mit Auto (Standard), 10 s, 20 s oder 30 s. Auf webOS 5/6 werden für entfernte HTTP-/HTTPS-Quellen native bufferControl-Schwellen angefordert; der lokale DTS-Konverter und andere Firmware behalten die Originaloptionen. Für den Vergleich mit derselben Datei zunächst Auto, dann 20 s wählen und den Stream neu öffnen.
 
-Der Nutzer bestätigt DTS-zu-Dolby mit 1.0.4. Player-/Konverter- und Streamingcode sind gegenüber 1.0.4 unverändert. Originalbibliotheken, Ressourcen, Lizenzen und eingebettete App-Konfiguration bleiben erhalten. Als Update installieren, ohne vorher zu deinstallieren. Der eingebaute Updater bleibt auf dem Originalprojekt.
+Die Schwellen sind kein fester MB-Cache und keine bestätigte Änderung der physischen Pufferkapazität. Dokumentiert ist die Wirkung auf HLS einer webOS-6-Firmware; ob direkte MKVs auf dem CX die Werte beachten, muss am TV geprüft werden. Bei Ablehnung oder fehlendem ersten Bild wird einmal mit den Originaloptionen neu geladen. Das Zeitlimit ist Ziel + 8 Sekunden; nach dem ersten Bild erfolgt kein automatischer Neustart wegen späteren Bufferings. Größere Ziele können den Start verzögern und beheben keinen dauerhaft zu geringen Zufluss.
 
-Prüfungen: ARM-Build, 20 Cursorfälle (12 mit echter Desktop-SDL, 8 Backend-/Fehlerfälle), 4 Medien-Tasten-Fälle, 14 unveränderte Audioprüfungen und 12 Transportfälle. Alle 330 Daten-Einträge haben die Originalberechtigungen. Die Testanzeige emuliert den LG-Compositor nicht; die Play-Referenztabelle stammt von anderer LG-Firmware. Die Bestätigung auf dem CX steht aus.
+Der bisherige HTTP-Range-Fix, die funktionierende DTS-Konvertierung und die Play-Zuordnung bleiben erhalten. Die Originalbibliotheken, vorhandenen Ressourcen, Lizenzen und eingebettete App-Konfiguration bleiben erhalten; die deutsche Übersetzung erhält lediglich drei Texte für die neue Einstellung. Als Update installieren, ohne vorher zu deinstallieren. Der eingebaute Updater bleibt auf dem Originalprojekt.
 
-Quellcode und Analyse: https://github.com/pacev93/stremio/tree/b5bd045d4ab2e6fd9ee433b82b4975b4c6b4bbc9/docs/streaming-range-fix.md
+Prüfungen: ARM-Build, 21 Cursorfälle (13 mit echter Desktop-SDL, 8 Backend-/Fehlerfälle), 10 native Puffer-Payload-/Rückfallfälle, 14 Audioentscheidungen, 4 Medien-Tasten-Fälle, 12 Transportfälle und alle 330 Paketdaten-Einträge mit Originalberechtigungen. Die effektive Medienpufferung wird durch die Tests nicht emuliert.
+
+Analyse einschließlich Stremio-Issue #2771 und Nuvio-Vergleich: https://github.com/pacev93/stremio/tree/c6f88c7a5e382bb53ce67dca5b20d6139d968432/docs/streaming-range-fix.md

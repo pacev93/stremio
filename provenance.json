@@ -1,30 +1,34 @@
 {
-  "sourceCommit": "b5bd045d4ab2e6fd9ee433b82b4975b4c6b4bbc9",
+  "sourceCommit": "c6f88c7a5e382bb53ce67dca5b20d6139d968432",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "156355e53b59714bbe05b36cd8e062d71a60f9e2d300cbdb2f4175e69f0d6542",
+  "ipkSha256": "b191dc2098055a54818ab50bb289c1baecfb35906896a30480a6e3ab684d2f8c",
   "applicationPayloadChanges": [
     "stremioorigin",
-    "appinfo.json (version only)"
+    "appinfo.json (version only)",
+    "assets/i18n/de.json (three new buffer-setting translations; existing text preserved)"
   ],
   "productionSourceChanges": [
-    "src/core/net.c: complete HTTP 206 ranges retain connection reuse (unchanged from 1.0.4)",
-    "src/core/app.c and app.h: cursor image idle/wake, inactive keyboard mode and foreground state",
-    "src/main.c: cursor focus/exit restoration and media/private-key diagnostics",
-    "src/platform/plat.h and mac/plat_mac.c: cursor image interface and Mac no-op (unchanged from 1.0.4)",
-    "src/platform/webos/plat_webos.c: SDL cursor images; native private Play scancode 450",
-    "src/screens/player.c: forced DTS conversion and old HEVC/HLS negative recovery (unchanged from 1.0.4)"
+    "src/core/net.c: complete HTTP 206 connection reuse (unchanged from 1.0.5)",
+    "src/core/app.c and app.h: cursor image state; wheel-only wake lock with foreground restoration",
+    "src/main.c: focus/exit restoration and media/private-key diagnostics (unchanged from 1.0.5)",
+    "src/platform/plat.h and mac/plat_mac.c: cursor image interface and Mac no-op (unchanged from 1.0.5)",
+    "src/platform/webos/plat_webos.c: cursor images and native Play scancode 450 (unchanged from 1.0.5)",
+    "src/platform/webos/video_webos.c: optional time-target bufferControl profiles and bounded startup fallback",
+    "src/screens/settings.c: Auto/10/20/30 s native buffer choice",
+    "src/screens/player.c: DTS corrections (unchanged from 1.0.5)",
+    "assets/i18n/de.json: three additional German buffer-setting strings"
   ],
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
-  "cursorStrategy": "Transparent image plus inactive input mode; ignore show notices/tremor; wake on deliberate 64-layout-pixel motion; restore original on focus loss/exit",
+  "cursorStrategy": "Transparent image; persistent wheel-only wake lock after idle/arrows; all motion/show/OK wake blocked; Home image restored without global policy changes",
   "tvFeedback": {
     "1.0.2": {
       "streaming": "User reports buffering appears resolved",
@@ -34,16 +38,39 @@
       "dtsForce": "User confirms DTS to Dolby conversion works as requested",
       "play": "Separate Magic Remote Play fails, including direct AAC/AC3 playback; Pause works",
       "cursor": "Hides as requested but small motion reactivates it during arrow-key use"
+    },
+    "before-1.0.6": {
+      "streaming": "User reports remaining stalls around 60 Mbps and occasionally 35 Mbps, independent of audio; built-in LAN port",
+      "cursorPreference": "After hide, wake only on wheel rotation; never wake on movement"
     }
   },
   "playKeyStatus": "Native private LG SDL scancode 450 mapped to Play; separate Pause and normalised toggle retained; CX event capture pending",
-  "cursorScenariosPassed": 20,
-  "realDesktopSdlCursorScenariosPassed": 12,
+  "cursorScenariosPassed": 21,
+  "realDesktopSdlCursorScenariosPassed": 13,
   "cursorBackendScenariosPassed": 8,
   "audioPolicyScenariosPassed": 14,
   "mediaKeyScenariosPassed": 4,
   "audioValidationScope": "Actual player decisions with stubbed media/transport boundaries; no media decoding or TV playback",
   "playKeyReference": "https://github.com/GLinnik21/plx-native/blob/579f44b97c7de6cc5274e76983eb608f638a7747/docs/remote-keys.md",
   "playerSourceUnchangedFromVersion": "1.0.4",
-  "tvPlayKeyValidated": false
+  "tvPlayKeyValidated": false,
+  "nativeBufferScenariosPassed": 10,
+  "tvBufferEffectValidated": false,
+  "nativeBufferPolicy": {
+    "default": "auto",
+    "choicesSeconds": [
+      10,
+      20,
+      30
+    ],
+    "firmwareMajors": [
+      5,
+      6
+    ],
+    "remoteHttpOnly": true,
+    "fixedMegabytes": false,
+    "directMkvEffect": "unverified on CX",
+    "localDtsBufferOptions": "unchanged",
+    "fallback": "Original options once on rejection/startup failure; no persistent capability blacklist"
+  }
 }
