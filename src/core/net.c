@@ -334,7 +334,10 @@ static size_t range_data(char *p, size_t s, size_t n, void *ud) {
   long need = r->len - r->got; if (need <= 0) return 0;
   long take = (long)add < need ? (long)add : need;
   memcpy(r->buf + r->got, p, take); r->got += take;
-  return r->got >= r->len ? 0 : add;                                      /* had what was asked: stop (a 200 for the whole file must not keep downloading) */
+  /* A complete 206 must finish normally so curl can reuse the connection. Returning 0 here
+     aborts every successful range with CURLE_WRITE_ERROR, discarding its keep-alive connection.
+     Still stop a 200 for the whole file, or a response that exceeds the requested buffer. */
+  return (size_t)take < add || (r->got >= r->len && r->status != 206) ? 0 : add;
 }
 NetRange *net_range_new(void) { if (!f_easy_init && !resolve()) return NULL; NetRange *r = calloc(1, sizeof *r); r->c = f_easy_init(); if (!r->c) { free(r); return NULL; } return r; }
 void net_range_free(NetRange *r) { if (!r) return; if (r->c) f_easy_cleanup(r->c); free(r); }
