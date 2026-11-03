@@ -1,6 +1,6 @@
-<p><b>Testversion 1.0.6</b></p>
-<p>Nach dem automatischen Ausblenden oder Pfeiltasten wird der Cursor ausschließlich durch Drehen am Scrollrad wieder aktiv. Bewegung allein aktiviert ihn nicht. Die erste Rastung weckt den Zeiger, weitere Rastungen behalten die bisherige Navigation bei.</p>
-<p>Neu unter Einstellungen → Wiedergabe → Videopuffer: Auto, 10 s, 20 s oder 30 s. Auto bleibt der Standard. Auf webOS 5/6 werden feste Zeit-Ziele für entfernte HTTP-Streams angefordert. Änderungen gelten ab dem nächsten Stream. Für einen Vergleich zunächst Auto und dann 20 s mit derselben Datei testen.</p>
-<p>Der TV kann die Ziele begrenzen oder für direkte MKVs ignorieren. Die Einstellung reserviert keine feste MB-Menge. Bei abgelehntem Profil oder Startproblemen fällt die App einmal auf die Originaloptionen zurück. Bereits laufende Filme werden wegen späterer Dips nicht neu gestartet. Der lokale DTS-Konverter bleibt bei seinen bisherigen Pufferoptionen.</p>
-<p>Die bisherigen DTS-, Play- und Streaming-Korrekturen bleiben erhalten. Als Update installieren, ohne vorher zu deinstallieren. Build, gezielte Tests und Paketberechtigungen sind geprüft; die tatsächliche Pufferwirkung und neue Cursorsteuerung am CX bleiben zu bestätigen.</p>
-<p><a href="https://github.com/pacev93/stremio/tree/c6f88c7a5e382bb53ce67dca5b20d6139d968432/docs/streaming-range-fix.md">Quellcode, Pufferanalyse und Prüfungen</a></p>
+<p><b>Version 1.0.7</b></p>
+<p>Die Puffer-Auswahl und sämtliche zusätzlichen Pufferparameter aus 1.0.6 wurden nach der Rückmeldung über Soundaussetzer vollständig entfernt. Videosteuerung, Einstellungsseite und Übersetzungen entsprechen wieder dem Original. Ein gespeicherter alter Pufferwert hat keine Wirkung mehr.</p>
+<p>Cursor-Aktivierung ausschließlich durch Drehen am Scrollrad, DTS-Konvertierung, native Play-Zuordnung und HTTP-Range-Fix bleiben erhalten.</p>
+<p>Als Update installieren, ohne vorher zu deinstallieren. Weitere Streaming-Ansätze sind zur Auswahl dokumentiert und noch nicht umgesetzt.</p>
+<p>Geprüft: ARM-Build, Audio-/Medientasten-Tests, bytegenaue Wiederherstellung der nativen Steuerung und vollständige Paketprüfung mit Originaldateien, Bibliotheken, App-Konfiguration und Berechtigungen.</p>
+<p><a href="https://github.com/pacev93/stremio/tree/04201dba38815a759e0780a2203757b6b7bedacf/docs/streaming-range-fix.md">Quellcode, Rücknahme und Optionen zur Auswahl</a></p>

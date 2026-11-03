@@ -1,17 +1,15 @@
-# Testversion 1.0.6
+# Wiederherstellung 1.0.7
 
-Bestehende Adresse im Homebrew Channel aktualisieren:
+Bestehende Homebrew-Adresse aktualisieren:
 
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-Nach Ausblenden bleibt der Cursor gesperrt, bis das Scrollrad gedreht wird. Bewegung, Cursor-Show-Meldungen und OK aktivieren ihn nicht. Home bekommt beim Fokuswechsel das ursprüngliche Cursorbild; die App-Sperre bleibt bei der Rückkehr erhalten. Keine globale Cursor-Sichtbarkeits-API wird verwendet.
+1.0.7 entfernt die Puffer-Auswahl, zusätzlichen nativen Zeit-Schwellen und die zugehörige Rückfalllogik aus 1.0.6 nach der Rückmeldung über Soundaussetzer. Der native Video-Quellcode, die Einstellungsseite und die deutsche Übersetzung sind bytegenau auf upstream 1.0.0 zurückgesetzt. Ausschließlich userBufferCtrl=false bleibt im ursprünglichen Load-Payload. Alte gespeicherte nativeBufferSeconds-Werte werden nicht mehr gelesen; kein Zurücksetzen und keine Deinstallation erforderlich.
 
-Neu: Einstellungen → Wiedergabe → Videopuffer mit Auto (Standard), 10 s, 20 s oder 30 s. Auf webOS 5/6 werden für entfernte HTTP-/HTTPS-Quellen native bufferControl-Schwellen angefordert; der lokale DTS-Konverter und andere Firmware behalten die Originaloptionen. Für den Vergleich mit derselben Datei zunächst Auto, dann 20 s wählen und den Stream neu öffnen.
+Die vorhandenen Korrekturen bleiben erhalten: HTTP-206-Verbindungswiederverwendung, erzwungene DTS-Konvertierung, native Play-Taste und Cursor-Aktivierung nach Ausblenden ausschließlich durch Scrollrad-Drehen. Es werden keine weiteren Streaming-Ansätze implementiert, bevor der Nutzer eine Option gewählt hat.
 
-Die Schwellen sind kein fester MB-Cache und keine bestätigte Änderung der physischen Pufferkapazität. Dokumentiert ist die Wirkung auf HLS einer webOS-6-Firmware; ob direkte MKVs auf dem CX die Werte beachten, muss am TV geprüft werden. Bei Ablehnung oder fehlendem ersten Bild wird einmal mit den Originaloptionen neu geladen. Das Zeitlimit ist Ziel + 8 Sekunden; nach dem ersten Bild erfolgt kein automatischer Neustart wegen späteren Bufferings. Größere Ziele können den Start verzögern und beheben keinen dauerhaft zu geringen Zufluss.
+Release-Prüfungen: ARM-Build, 14 Audiotests, 4 Medientasten-Fälle, exakter Quellvergleich für die Rücknahme und den Erhalt der übrigen Änderungen sowie Prüfung der endgültigen IPK gegen alle 330 Original-Dateneinträge. Programm und Versionsangabe sind die einzigen abweichenden App-Dateien. Originalbibliotheken, Ressourcen, Lizenzen, eingebettete App-Konfiguration und Dateiberechtigungen bleiben erhalten. Der eingebaute Updater bleibt auf dem Originalprojekt.
 
-Der bisherige HTTP-Range-Fix, die funktionierende DTS-Konvertierung und die Play-Zuordnung bleiben erhalten. Die Originalbibliotheken, vorhandenen Ressourcen, Lizenzen und eingebettete App-Konfiguration bleiben erhalten; die deutsche Übersetzung erhält lediglich drei Texte für die neue Einstellung. Als Update installieren, ohne vorher zu deinstallieren. Der eingebaute Updater bleibt auf dem Originalprojekt.
+Die bestehenden Cursor- und Transporttests bleiben unverändert; die Tests des verworfenen Puffer-Experiments sind aus dem aktuellen Stand entfernt und in Git erhalten. Reale TV-Wiedergabe lässt sich aus dieser Umgebung nicht überprüfen.
 
-Prüfungen: ARM-Build, 21 Cursorfälle (13 mit echter Desktop-SDL, 8 Backend-/Fehlerfälle), 10 native Puffer-Payload-/Rückfallfälle, 14 Audioentscheidungen, 4 Medien-Tasten-Fälle, 12 Transportfälle und alle 330 Paketdaten-Einträge mit Originalberechtigungen. Die effektive Medienpufferung wird durch die Tests nicht emuliert.
-
-Analyse einschließlich Stremio-Issue #2771 und Nuvio-Vergleich: https://github.com/pacev93/stremio/tree/c6f88c7a5e382bb53ce67dca5b20d6139d968432/docs/streaming-range-fix.md
+Untersuchung und bewertete, noch nicht umgesetzte Optionen: https://github.com/pacev93/stremio/tree/04201dba38815a759e0780a2203757b6b7bedacf/docs/streaming-range-fix.md
