@@ -12,20 +12,20 @@
       "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
       "pool": "main",
       "manifestUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/manifest.json",
-      "shortDescription": "1.0.3: Cursor-Aenderung zurueckgenommen; Streaming-Fix bleibt.",
+      "shortDescription": "1.0.4: Neuer Cursorfix, DTS-Umwandlung und Play-Taste.",
       "fullDescriptionUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/full_description.html",
       "manifest": {
         "id": "tv.stremioorigin.app",
-        "version": "1.0.3",
+        "version": "1.0.4",
         "type": "native",
         "title": "Stremio Origin",
-        "appDescription": "Wiederherstellung 1.0.3: Native Cursor-Aenderung vollstaendig entfernt; Original-Cursorverhalten und HTTP-Range-Fix.",
+        "appDescription": "1.0.4: Neuer Cursorfix, erzwungene DTS-Umwandlung und Play-Taste; Streaming-Fix bleibt erhalten.",
         "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-        "sourceUrl": "https://github.com/pacev93/stremio/tree/7b705fa41fa0ca57c9447d07bf20e249aa4dedc2",
+        "sourceUrl": "https://github.com/pacev93/stremio/tree/96ec8a0d2a20265e9c5d791480b6965b07389205",
         "rootRequired": false,
-        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.3_arm.ipk",
+        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.4_arm.ipk",
         "ipkHash": {
-          "sha256": "4e7f6be6b9da760b313a7caabc99ae3257eedcc0bd19a5020c2676bab35423db"
+          "sha256": "91605829ac0847dd7fb7d491552aa3bf7f793686d9827b5dd30f6cb0edc945bc"
         }
       }
     }

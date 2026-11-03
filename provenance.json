@@ -1,30 +1,41 @@
 {
-  "sourceCommit": "7b705fa41fa0ca57c9447d07bf20e249aa4dedc2",
+  "sourceCommit": "96ec8a0d2a20265e9c5d791480b6965b07389205",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "4e7f6be6b9da760b313a7caabc99ae3257eedcc0bd19a5020c2676bab35423db",
+  "ipkSha256": "91605829ac0847dd7fb7d491552aa3bf7f793686d9827b5dd30f6cb0edc945bc",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
   ],
   "productionSourceChanges": [
-    "src/core/net.c:range_data"
+    "src/core/net.c: complete HTTP 206 ranges retain connection reuse (unchanged from 1.0.3)",
+    "src/core/app.c and app.h: cursor image idle/wake and foreground state",
+    "src/main.c: cursor focus and normal-exit restoration",
+    "src/platform/plat.h and mac/plat_mac.c: cursor image interface and Mac no-op",
+    "src/platform/webos/plat_webos.c: SDL cursor images and raw LG media-key values",
+    "src/screens/player.c: forced DTS conversion, language/track priority and recovery from old HEVC/HLS negatives"
   ],
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
-  "cursorStrategy": "Original upstream cursor behavior fully restored",
+  "cursorStrategy": "Transparent SDL cursor image; restore original on wake/focus loss/exit; no cursor visibility policy API",
   "tvFeedback": {
     "1.0.2": {
       "streaming": "User reports buffering appears resolved",
       "cursor": "User reports system-wide suppression requiring TV restart; change withdrawn"
     }
   },
-  "playKeyStatus": "Reported; original key handling retained in recovery build"
+  "playKeyStatus": "Raw LG 415/19/10252 handled; actual TV events not observed",
+  "cursorScenariosPassed": 15,
+  "realDesktopSdlCursorScenariosPassed": 7,
+  "cursorBackendScenariosPassed": 8,
+  "audioPolicyScenariosPassed": 14,
+  "mediaKeyScenariosPassed": 4,
+  "audioValidationScope": "Actual player decisions with stubbed media/transport boundaries; no media decoding or TV playback"
 }

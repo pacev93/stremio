@@ -1,13 +1,17 @@
-# Recovery build 1.0.3
+# Testversion 1.0.4
 
-Add / refresh this repository in Homebrew Channel:
+Bestehende Repository-Adresse im Homebrew Channel aktualisieren:
 
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-Version 1.0.3 withdraws the cursor modification from 1.0.1/1.0.2 after a report of system-wide cursor suppression requiring a TV restart. All cursor/application platform code is restored byte-for-byte to upstream source. Only src/core/net.c differs under src/: the HTTP-206 connection reuse fix remains.
+1.0.4 enthält den bestehenden HTTP-206-Verbindungsfix, einen neuen Cursorbild-Wechsel, die Korrektur der erzwungenen DTS-Konvertierung und zusätzliche LG-Medientastenwerte. Als Update installieren, ohne vorher zu deinstallieren.
 
-The original cursor may stay visible. The reported remote Play-key issue remains open; media-key handling is unchanged in this recovery build. Do not continue using 1.0.2. Install 1.0.3 as an update, without uninstalling.
+Der Cursorfix tauscht nur das Bild gegen ein transparentes Bild aus und stellt es bei Bewegung, Fokusverlust und regulärem Beenden wieder her. Die verworfenen Cursor-Sichtbarkeits-APIs werden nicht verwendet. Falls die Cursorbild-Funktionen nicht verfügbar sind, bleibt der normale Zeiger erhalten.
 
-Validation: ARM build, 12 transport scenarios, original permissions for all 330 data archive entries, original libraries/resources/licenses/app configuration, and no withdrawn cursor API names in the rebuilt executable. Actual TV behavior still needs verification.
+Die DTS-Einstellung „Umwandeln“ übergeht eine früher gespeicherte negative HEVC/HLS-Beobachtung. Ein einzelner Wiedergabefehler sperrt künftige Versuche nicht dauerhaft. Gewähltes DTS wird vor automatischen Ersatzspuren konvertiert, auch bei automatischer Sprachauswahl. Die Konverterbibliothek ist unverändert; Mehrkanal-DTS wird als AC3 5.1 ausgegeben, Stereo bleibt Stereo.
 
-The built-in updater still targets upstream. Source and investigation: https://github.com/pacev93/stremio/tree/7b705fa41fa0ca57c9447d07bf20e249aa4dedc2/docs/streaming-range-fix.md
+Prüfungen: ARM-Build, 12 Transportfälle, 15 Cursorfälle (7 mit echter Desktop-SDL, 8 mit kontrollierten Backend-/Fehlergrenzen), 14 Audioentscheidungen, 4 Medien-Tasten-Fälle sowie alle 330 Paketeinträge gegen das Original. Originalbibliotheken, Ressourcen, Lizenzen und eingebettete App-Konfiguration bleiben erhalten. Die Tests bilden den LG-Compositor und die tatsächliche Medienwiedergabe nicht nach; ein Test auf dem TV steht aus.
+
+1.0.1/1.0.2 hatten einen Cursorfehler mit systemweiten Nebenwirkungen. Dieser wurde in 1.0.3 zurückgenommen; 1.0.4 verwendet einen anderen Weg. Der eingebaute Updater bleibt auf dem Originalprojekt.
+
+Quellcode und Analyse: https://github.com/pacev93/stremio/tree/96ec8a0d2a20265e9c5d791480b6965b07389205/docs/streaming-range-fix.md
