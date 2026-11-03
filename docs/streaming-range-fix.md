@@ -95,7 +95,7 @@ passed. Existing compiler and package-metadata warnings were left unchanged.
 
 ## Test package and TV verification
 
-The Homebrew test package uses the original app ID/title and version 1.0.1. Its
+The Homebrew test package uses the original app ID/title and version 1.0.2. Its
 application payload is based on the verified upstream IPK: every file except
 the rebuilt executable and `appinfo.json` is byte-for-byte unchanged. The latter
 changes only its version. The original `libsbengine.so`, `libsbdts.so`, assets,
@@ -148,3 +148,27 @@ cursor, leave the remote still, verify it disappears after about three seconds,
 then check movement, clicks, arrows, wheel input and a held click both in menus
 and during playback. Autoscrolling mentioned separately in the upstream issue
 is outside this change.
+
+## Startup correction in 1.0.2
+
+The initial 1.0.1 package had incorrect file permissions: the executable and
+shared libraries were packaged as `0704` instead of upstream's `0755`, and data
+files as `0604` instead of `0644`. A non-owner TV process could not execute the
+application, consistent with the reported exit before the loading screen.
+Byte comparisons and ownership checks in the initial package validation missed
+the permission differences.
+
+Version 1.0.2 retains the exact same application executable as 1.0.1 and restores
+every data/control archive entry's mode from the verified original 1.0.0 IPK.
+Only the package version and permissions change. The repacker now supports an
+explicit reference archive:
+
+```sh
+python3 tools/scrub_ipk.py candidate.ipk --reference original-1.0.0.ipk
+python3 tests/package/check.py original-1.0.0.ipk candidate.ipk
+```
+
+The regression checks the final distribution archive's entries, types,
+permissions, ownership, non-owner executable access and allowed payload changes.
+It rejects 1.0.1 and passes 1.0.2. The corrected package's real startup and the
+two original behavior fixes still require verification on the user's TV.
