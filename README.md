@@ -1,15 +1,36 @@
-# Wiederherstellung 1.0.7
+# Update 1.0.8
 
-Bestehende Homebrew-Adresse aktualisieren:
+Bestehende Homebrew-Adresse unverändert:
 
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-1.0.7 entfernt die Puffer-Auswahl, zusätzlichen nativen Zeit-Schwellen und die zugehörige Rückfalllogik aus 1.0.6 nach der Rückmeldung über Soundaussetzer. Der native Video-Quellcode, die Einstellungsseite und die deutsche Übersetzung sind bytegenau auf upstream 1.0.0 zurückgesetzt. Ausschließlich userBufferCtrl=false bleibt im ursprünglichen Load-Payload. Alte gespeicherte nativeBufferSeconds-Werte werden nicht mehr gelesen; kein Zurücksetzen und keine Deinstallation erforderlich.
+Als Update installieren, ohne Deinstallation oder Zurücksetzen.
 
-Die vorhandenen Korrekturen bleiben erhalten: HTTP-206-Verbindungswiederverwendung, erzwungene DTS-Konvertierung, native Play-Taste und Cursor-Aktivierung nach Ausblenden ausschließlich durch Scrollrad-Drehen. Es werden keine weiteren Streaming-Ansätze implementiert, bevor der Nutzer eine Option gewählt hat.
+Cursor: verlorene Klickzustände werden ohne Auslösen der alten Aktion abgebrochen.
+Bestätigter SDL-Fokus kann eine verlorene Rückkehrmeldung reparieren; ein expliziter
+App-Hintergrund bleibt geschützt. Das ausgeblendete Cursorbild wird bei Bedarf erneut
+gesetzt. Ausschließlich Drehen am Rad aktiviert den ausgeblendeten Zeiger.
 
-Release-Prüfungen: ARM-Build, 14 Audiotests, 4 Medientasten-Fälle, exakter Quellvergleich für die Rücknahme und den Erhalt der übrigen Änderungen sowie Prüfung der endgültigen IPK gegen alle 330 Original-Dateneinträge. Programm und Versionsangabe sind die einzigen abweichenden App-Dateien. Originalbibliotheken, Ressourcen, Lizenzen, eingebettete App-Konfiguration und Dateiberechtigungen bleiben erhalten. Der eingebaute Updater bleibt auf dem Originalprojekt.
+Spulen: konvertierte Streams beginnen eine neue Konverter- und Mediensitzung;
+alte Segmentanfragen laufen aus. Direkte Rückwärtssprünge laden die Mediensitzung
+neu. Zielposition, Tonspur, Untertitel und Pause werden erhalten. Zusätzliche
+Ladezeit beim Spulen ist möglich.
 
-Die bestehenden Cursor- und Transporttests bleiben unverändert; die Tests des verworfenen Puffer-Experiments sind aus dem aktuellen Stand entfernt und in Git erhalten. Reale TV-Wiedergabe lässt sich aus dieser Umgebung nicht überprüfen.
+Textuntertitel: Header, Audio-/DV-Daten und Kapitel bleiben verfügbar. Der Index
+und Dialogdaten werden erst bei Bedarf gelesen, nur die angeforderte Textspur im
+vorhandenen Zeitfenster. Off/externe Untertitel erfordern kein laufendes Sammeln
+aller Sprachen. Auto-sync kann vorübergehend eine Referenzspur anfordern und gibt
+sie danach frei. Auch Index-Wiederholungen warten nach dem Ausschalten.
 
-Untersuchung und bewertete, noch nicht umgesetzte Optionen: https://github.com/pacev93/stremio/tree/04201dba38815a759e0780a2203757b6b7bedacf/docs/streaming-range-fix.md
+Native Pufferautomatik und DTS-Umwandlung bleiben erhalten. Kein neuer Proxy,
+keine Änderung der Range-Größen, keine neue Containerbibliothek. Die Statistik
+kennzeichnet lokale Konvertierung und ausgeschaltete Untertitel korrekt.
+
+83 lokale Regressionsszenarien und ARM-Build erfolgreich. Endgültige IPK mit allen
+330 Original-Dateneinträgen verglichen: Rechte und Ressourcen unverändert, nur
+Programm und Versionsangabe weichen ab. Die eingebettete Original-App-Konfiguration
+bleibt erhalten. Der eingebaute Updater verweist weiterhin auf das Originalprojekt.
+Die geschlossene LG-CX-Pipeline ist aus dieser Umgebung nicht erreichbar; Wiedergabe,
+Seek und Cursor bleiben auf dem TV zu bestätigen.
+
+Quellen und Details: https://github.com/pacev93/stremio/tree/a8d8eaa6d7d7da37867ffbe4eb309d02c73038d5/docs/streaming-range-fix.md

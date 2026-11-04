@@ -12,20 +12,20 @@
       "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
       "pool": "main",
       "manifestUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/manifest.json",
-      "shortDescription": "1.0.7: Puffer-Override entfernt; originale webOS-Automatik.",
+      "shortDescription": "1.0.8: Cursor/Seek stabilisiert; Textuntertitel nur bei Bedarf.",
       "fullDescriptionUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/full_description.html",
       "manifest": {
         "id": "tv.stremioorigin.app",
-        "version": "1.0.7",
+        "version": "1.0.8",
         "type": "native",
         "title": "Stremio Origin",
-        "appDescription": "1.0.7: Puffer-Experiment vollständig entfernt; originale native webOS-Automatik. Cursor-, DTS-, Play- und HTTP-Range-Fixes bleiben erhalten.",
+        "appDescription": "1.0.8: Cursor- und Spul-Korrekturen; Textuntertitel nur bei Bedarf. Originale native Pufferautomatik und DTS-Umwandlung bleiben erhalten.",
         "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-        "sourceUrl": "https://github.com/pacev93/stremio/tree/04201dba38815a759e0780a2203757b6b7bedacf",
+        "sourceUrl": "https://github.com/pacev93/stremio/tree/a8d8eaa6d7d7da37867ffbe4eb309d02c73038d5",
         "rootRequired": false,
-        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.7_arm.ipk",
+        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.8_arm.ipk",
         "ipkHash": {
-          "sha256": "22c11690bd58670889b0c68dbef77249c8ac4a74f91e74e87ce17c226c4248d1"
+          "sha256": "8abd2c1c399ac5290b7133a0c0dfdecadd7e5cbcc7b355a5b45d204a5220d0ca"
         }
       }
     }
