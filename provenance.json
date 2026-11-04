@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "3fbe463d32e516353df1eedbac11bce3ade17c60",
+  "sourceCommit": "4582e074a3be866dc2af87291a2e5cc885cf811d",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "dec611ac2b348fc2d21f0b8719c1638a49a6d253237873cb403e9a44516c2709",
+  "ipkSha256": "3a8921d146f3fbb20d8640905408dd1ae98fcb60580257e0ee1bc5e8ec71810f",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
@@ -14,7 +14,7 @@
     "src/core/app.c and app.h: wheel-only cursor; cancel lost presses and reassert hidden image; active return still idles",
     "src/main.c: lifecycle reconciliation before delivering each SDL event; remove foreground-query pre-poll; native media-key diagnostics retained",
     "src/platform/plat.h and mac/plat_mac.c: existing image interface; document SDL input-based return recovery",
-    "src/platform/webos/plat_webos.c: remove foreground-service gating; addressed wheel/click and focused pointer events recover missing return; image-only cursor and native Play scancode retained",
+    "src/platform/webos/plat_webos.c: explicit pointer leave/enter handover and observed mouse-focus return; no foreground-service query; image-only cursor and native Play retained",
     "src/platform/webos/video_webos.c: native forward/backward seeks retained from 1.0.9; pause/track preservation in necessary indexless TS reopen; original buffer payload",
     "src/core/hproxy.c: stopped queued converter requests cannot execute",
     "src/core/mkvsubs.c and mkvsubs.h: subtitle harvesting only on demand",
@@ -23,11 +23,11 @@
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.10",
+  "version": "1.0.11",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
-  "cursorStrategy": "Wheel-only wake; image-only hiding; no foreground-service query; input addressed to our SDL window recovers a missing return before that same input is delivered",
+  "cursorStrategy": "Explicit pointer leave/enter handover; no keyboard-only resume while pointer is outside; addressed enter or observed mouse-focus departure/return restores input and image together, retaining wheel lock",
   "tvFeedback": {
     "1.0.2": {
       "streaming": "User reports buffering appears resolved",
@@ -60,11 +60,15 @@
       "version": "Follow-up after release 1.0.9; installed TV version not separately captured",
       "cursor": "Pointer no longer operates at all; once visible it stays visible without functionality",
       "response": "Remove foreground-service poll entirely; input addressed to the app window recovers stale background state"
+    },
+    "after-1.0.10": {
+      "cursor": "Hidden pointer -> LG quick settings -> Back leaves visible, nonfunctional pointer; screensaver can hide image but only pointer moves after reactivation, no app hover or clicks",
+      "authorization": "User requests functional patch without diagnostic build; log and evaluate next if this fails"
     }
   },
   "playKeyStatus": "Native private LG SDL scancode 450 mapped to Play; separate Pause and normalised toggle retained; CX event capture pending",
-  "cursorScenariosPassed": 30,
-  "realDesktopSdlCursorScenariosPassed": 22,
+  "cursorScenariosPassed": 31,
+  "realDesktopSdlCursorScenariosPassed": 23,
   "cursorBackendScenariosPassed": 8,
   "audioPolicyScenariosPassed": 14,
   "mediaKeyScenariosPassed": 4,
@@ -85,9 +89,9 @@
   ],
   "releaseChecks": {
     "armBuild": "passed",
-    "cursor": "30 passed",
-    "foreground": "16 passed",
-    "regressionBeforeFix": "Valid addressed wheel after missing return rejected by 1.0.9; accepted after fix",
+    "cursor": "31 passed",
+    "foreground": "19 passed",
+    "regressionBeforeFix": "1.0.10 ignored pointer leave and required matching cached mouse focus for pointer enter",
     "audio": "14 passed in 1.0.9; source unchanged",
     "mediaKeys": "4 passed in 1.0.9; source unchanged",
     "seek": "18 passed in 1.0.9; source unchanged",
@@ -96,16 +100,22 @@
     "package": "330 original entry modes and unchanged resources verified"
   },
   "furtherStreamingOptions": "On-demand subtitle reads selected and implemented in 1.0.8; other streaming changes remain proposals",
-  "binarySha256": "bdd387729f2baefbfcdc912186a50d93101a394c8a341b863130690c823da1ba",
+  "binarySha256": "cb86f24fdcaedb712a656bbcacdf8a25dfd767d0bb44fe990e659d827a3a7186",
   "seekScenariosPassed": 18,
   "mkvWorkerScenariosPassed": 9,
-  "totalRegressionScenariosPassed": 103,
+  "totalRegressionScenariosPassed": 107,
   "tvSeekValidated": false,
   "seekStrategy": "Native seek within the existing direct/HLS session; 350 ms debounce retained; reopen only the existing indexless continuous-TS path with pause/track preservation; no unconditional converter restart",
   "subtitleStrategy": "Metadata/chapters retained; defer subtitle index; only requested text track near playhead; one temporary Auto-sync reference; stop off retries",
-  "foregroundScenariosPassed": 16,
-  "foregroundValidationScope": "16 controlled SDL event/state cases plus 30 image/input/backend cases; rejected wheel reproduced against 1.0.9; 100 real-SDL image/click/idle cycles and 2000 controlled panel returns; no actual CX event trace",
-  "scenariosRunForThisRelease": 46,
-  "playbackSourceUnchangedFromVersion": "1.0.9",
-  "withdrawnForegroundPollingVersion": "1.0.9"
+  "foregroundScenariosPassed": 19,
+  "foregroundValidationScope": "19 controlled focus cases and 31 image/input/backend cases, including 100 real-SDL quick-panel handovers; actual CX events not observed",
+  "scenariosRunForThisRelease": 50,
+  "playbackSourceUnchangedFromVersion": "1.0.10",
+  "withdrawnForegroundPollingVersion": "1.0.9",
+  "discardedCursorApproaches": [
+    "Global cursor visibility/input switches from early releases",
+    "Foreground-service polling from 1.0.9",
+    "Treating visible cursor or keyboard focus alone as proof of pointer ownership"
+  ],
+  "nextStepIfCursorFailurePersists": "Capture actual CX input/focus events before further functional changes"
 }

@@ -1,33 +1,23 @@
-# Update 1.0.10
+# Update 1.0.11
 
-Bestehende Homebrew-Adresse unverändert:
-
+Bestehende Homebrew-Adresse:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-Origin vollständig schließen und als Update installieren. Keine Deinstallation
-oder Zurücksetzung erforderlich.
+Origin vollständig schließen und als Update installieren; keine Deinstallation.
 
-Cursor: Die zusätzliche Vordergrund-Serviceabfrage aus 1.0.9 ist entfernt.
-Sie konnte die gesamte Zeigerbedienung sperren und danach sogar gültige
-Scrollrad-Eingaben für Origin abweisen. Der neue Regressionstest reproduziert
-diese Blockade mit dem 1.0.9-Code und besteht nach der Korrektur.
+Der Zeigerfokus wird beim Verlassen des App-Fensters ausdrücklich abgegeben.
+Tastaturfokus allein holt ihn während eines Systemmenüs nicht zurück. Bei
+adressierter Zeigerrückkehr oder beobachtetem Mausfokuswechsel zurück zu Origin
+werden Klickzustand und Cursorbild gemeinsam wiederhergestellt. Ein zuvor
+verdeckter Cursor bleibt bis zur nächsten Radbewegung verborgen.
 
-Rad- und linke Mausbetätigungen für das App-Fenster reparieren eine fehlende
-Rückkehrmeldung vor Verarbeitung derselben Eingabe. Pfeile/OK und bestätigter
-SDL-Mausfokus können die veraltete Sperre ebenfalls lösen. Bewegung allein
-löst die Rad-Sperre nicht. Aktivierung nach Ausblenden bleibt ausschließlich
-per Scrollrad. Hintergrundereignisse ohne passende Fenster-ID und bloße
-Cursor-Show-Meldungen aktivieren die Bedienung nicht.
+Keine Vordergrund-Serviceabfrage und keine globalen Cursor-Schalter. Wiedergabe,
+Spulen, DTS und Pufferautomatik entsprechen 1.0.10.
 
-Spulen, DTS-Umwandlung, native Pufferautomatik und bedarfsgerechte
-Textuntertitelabrufe sind unverändert gegenüber 1.0.9.
+50 lokale Cursor-/Fokusprüfungen, ARM-Build und Paketprüfung bestanden.
+Alle 330 Original-Dateirechte, Ressourcen, Bibliotheken und mitgelieferte
+App-Konfiguration bleiben erhalten. Der konkrete LG-CX-Ablauf ist nicht
+aufgezeichnet und muss am TV geprüft werden. Bei erneutem Fehlschlag folgt
+der Ereignismitschnitt vor weiteren funktionalen Änderungen.
 
-46 Cursor-/Fokusprüfungen und ARM-Build bestanden. Dazu gehören 100 wiederholte
-Bildwechsel-/Klick-/Idle-Zyklen mit echter Desktop-SDL und 2000 kontrollierte
-Menürückkehrfälle. Der unveränderte Wiedergabecode behält die 57 Prüfungen aus
-1.0.9. Die endgültige IPK entspricht bei allen 330 Dateneinträgen den originalen
-Rechten; Ressourcen, Bibliotheken und eingebettete App-Konfiguration bleiben
-erhalten. Die tatsächlichen Ereignisse und das Verhalten des LG CX sind aus
-dieser Umgebung weiterhin nicht überprüfbar.
-
-Quellen und Details: https://github.com/pacev93/stremio/tree/3fbe463d32e516353df1eedbac11bce3ade17c60/docs/streaming-range-fix.md
+Details: https://github.com/pacev93/stremio/tree/4582e074a3be866dc2af87291a2e5cc885cf811d/docs/streaming-range-fix.md

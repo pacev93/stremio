@@ -12,20 +12,20 @@
       "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
       "pool": "main",
       "manifestUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/manifest.json",
-      "shortDescription": "1.0.10: Cursor-Regression korrigiert; Aktivierung weiterhin per Scrollrad.",
+      "shortDescription": "1.0.11: Cursorübergabe bei LG-Schnelleinstellungen.",
       "fullDescriptionUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/full_description.html",
       "manifest": {
         "id": "tv.stremioorigin.app",
-        "version": "1.0.10",
+        "version": "1.0.11",
         "type": "native",
         "title": "Stremio Origin",
-        "appDescription": "1.0.10: Cursor-Regression aus 1.0.9 korrigiert. Fehleranfällige Vordergrund-Abfrage entfernt; App-Eingaben reparieren die Rückkehr. Scrollrad-Aktivierung bleibt erhalten. Wiedergabe unverändert.",
+        "appDescription": "1.0.11: Zeigerfokus bei LG-Systemmenüs übergeben und wiederherstellen. Verdeckter Cursor bleibt bis zur Radaktivierung verborgen. Wiedergabe unverändert.",
         "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-        "sourceUrl": "https://github.com/pacev93/stremio/tree/3fbe463d32e516353df1eedbac11bce3ade17c60",
+        "sourceUrl": "https://github.com/pacev93/stremio/tree/4582e074a3be866dc2af87291a2e5cc885cf811d",
         "rootRequired": false,
-        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.10_arm.ipk",
+        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.11_arm.ipk",
         "ipkHash": {
-          "sha256": "dec611ac2b348fc2d21f0b8719c1638a49a6d253237873cb403e9a44516c2709"
+          "sha256": "3a8921d146f3fbb20d8640905408dd1ae98fcb60580257e0ee1bc5e8ec71810f"
         }
       }
     }
