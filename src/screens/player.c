@@ -139,7 +139,7 @@ static struct {
     int conv, convOrd, hevc; double convAt, convT0, okAt, deferUntil;
     /* the same conversion for a Dolby Vision profile 7 picture: dv the picture goes out as 8.1, copyA the audio track as
        it is, dvTried started once already, dvSeen what the TV showed was checked */
-    int dv, copyA, dvTried, dvSeen, pauseAfterSeek; double dvAt; } dts;
+    int dv, copyA, dvTried, dvSeen; double dvAt; } dts;
   int assPlain; /* styled subtitles were too slow here: plain for the rest of this film */ double lastSave; int marked; char aspect[8]; const char *res; char infoKey[256]; int pausedShown; double pausedAt;
   /* torrents: resolved by the engine first; the file's own subtitles and chapters from the stream itself */
   int isP2p, resolving; double posTick; int mkvTracksOk, chapWant;
@@ -876,20 +876,7 @@ static void seek_by(int dir) {
   if (a >= 60) snprintf(P.seekTxt, sizeof P.seekTxt, "%s%s%s%s", dd >= 0 ? "+" : "-", T1("{m}m", "m", m), a % 60 ? " " : "", a % 60 ? T1("{s}s", "s", s) : ""); else snprintf(P.seekTxt, sizeof P.seekTxt, "%s%s", dd >= 0 ? "+" : "-", T1("{s}s", "s", s));
   P.skOn = 1; /* the pill stays put while it is up: only its number changes */ P.seekTxtUntil = 0; P.seekCommitAt = n + 1.2;
 }
-static void seek_to(double t) {
-  if (t < 0) t = 0;
-  if (P.dts.conv == 2) {
-    /* A new converter generation invalidates every old segment URL and its queued reads. */
-    int flags = (mkv_has_index(mkv) == 0 ? HC_NOINDEX : 0) | (P.dts.dv ? HC_DV81 : 0) | (P.dts.copyA ? HC_COPYAUDIO : 0);
-    P.dts.pauseAfterSeek = paused(); P.dts.convAt = t; P.dts.convT0 = now_(); P.dts.okAt = 0;
-    video_unload(); P.live = 0; P.liveT0 = 0; P.didResume = 0; P.startAt = t > 0 ? t : -1; P.dts.conv = 1;
-    hls_conv_start(P.url, P.dts.convOrd, flags);
-    fprintf(stderr, "[seek] fresh converter and media session at %.3f s\n", t);
-    return;
-  }
-  video_seek(t);
-}
-static void commit_seek(void) { if (P.seekT < 0) return; double t = P.seekT; P.seekT = -1; seek_to(t); P.seekTxtUntil = now_() + 0.9; }
+static void commit_seek(void) { if (P.seekT < 0) return; double t = P.seekT; P.seekT = -1; video_seek(t); P.seekTxtUntil = now_() + 0.9; }
 static void cancel_seek(void) { P.seekT = -1; P.skm = 0; P.skOn = 0; P.seekTxtUntil = 0; }
 
 /* ---- picture size, three states always in this order: Original (the whole picture), Fill (fills the screen: a file
@@ -1404,7 +1391,6 @@ void player_key(int k, int down) {
   if (P.failed && P.canNext && k == K_OK) { try_next(); return; }
   if (!P.started || !P.live || P.failed) { if (k == K_BACK || k == K_EXIT) close_player(0, 0); return; } /* the art is up (resolving): only Back does anything */
   P.hvOn = 0;
-  if (k == K_PLAY && P.dts.pauseAfterSeek) { P.dts.pauseAfterSeek = 0; video_play(); }
   if (P.mode == 4 && (k == K_PLAY || k == K_PAUSE || k == K_PLAYPAUSE)) { if (k == K_PLAYPAUSE || (k == K_PLAY) == paused()) toggle(); return; } /* the card stays: the controls don't come */
   if (k == K_PLAY) { if (paused()) video_play(); show_osd(1); return; }
   if (k == K_PAUSE) { if (!paused()) { video_pause(); save_progress(1); } show_osd(1); return; }
@@ -1653,7 +1639,7 @@ void player_play_at(const Stream *s, const char *type, const char *id, const cha
 void player_cast(int cmd, double pos) {
   if (!P.open || P.closing) return;
   if (cmd == 1 && !paused()) { video_pause(); save_progress(1); } else if (cmd == 2 && paused()) video_play();
-  else if (cmd == 3 && P.live) seek_to(pos); else if (cmd == 4) close_player(0, 0);
+  else if (cmd == 3 && P.live) video_seek(pos < 0 ? 0 : pos); else if (cmd == 4) close_player(0, 0);
 }
 /* the subtitles and audio as the trays list them, for a phone: ids it hands back as they are ("off", "emb:<track>",
    "ext1:<n>" the stream's and OpenSubtitles', "ext2:<n>" the addons', audio "<track>" or "conv:<n>" a converted one) */
@@ -1869,7 +1855,6 @@ void player_tick(float dt) {
     if (n >= 0) { P.chapWant = 0; PlayerChapter pc[64]; for (int i = 0; i < n; i++) { snprintf(pc[i].name, sizeof pc[i].name, "%s", mc[i].name); pc[i].s = mc[i].s; pc[i].e = mc[i].e < 0 ? dur() : mc[i].e; } player_chapters(P.url, pc, n); } }
   if (P.dts.conv == 2 && !P.failed && (vs == VID_ERROR || (!video_live() && now_() - P.dts.convT0 > 25))) { dts_conv_failed(vs == VID_ERROR ? video_error() : "no picture after 25 s"); return; }
   if (P.dts.deferUntil) dts_defer_tick();
-  if (P.dts.pauseAfterSeek && P.live && !video_settling()) { P.dts.pauseAfterSeek = 0; video_pause(); }
   if (vs == VID_ERROR && !P.failed && P.started && P.isP2p && !P.p2pRetried && p2p_moved_recently()) { /* the torrent's storage moved (a USB drive pulled out): the same stream once more, same moment */
     P.p2pRetried = 1; P.startAt = P.lastPos > 0 ? P.lastPos : 0; P.didResume = 0; P.live = 0; fprintf(stderr, "[player] stream error after the torrent storage moved: again at %.0f s\n", P.startAt); video_load(P.url); vs = video_state(); }
   if (vs == VID_ERROR && !P.failed && P.started) { if (P.alt[0] && !P.altTried) { P.altTried = 1; fprintf(stderr, "[player] error, the fallback URL\n"); video_load(P.alt); } else { if (!P.errAt) P.errAt = now_(); if (!P.sizeTok || P.sizeAns || now_() - P.errAt > 4) fail(fail_reason()); } } /* the first URL failed: the same file the other way; the reason waits for the server's answer (4 s at most) */

@@ -69,8 +69,8 @@ static int winX, winY, winW = 1920, winH = 1080; static int cropSX = -1, cropSY,
 static int surfW = 1920, surfH = 1080;
 /* the main thread's own (seek debounce, recovery) */
 static int seekWait; static Uint32 seekWaitAt; /* a seek sent, its seekDone not yet seen */
-static double seekTarget = -1, seekOrigin; static Uint32 seekAt; static int seekRefusedTries; static Uint32 seekRetryAt;
-static int seekReload, pauseAfterSeek;
+static double seekTarget = -1; static Uint32 seekAt; static int seekRefusedTries; static Uint32 seekRetryAt;
+static int pauseAfterSeek;
 static struct { int on; double at; int aud, txt, paused; } resume;
 
 static void log_payload(const char *what, const char *p) { if (!p) return; size_t n = strlen(p); while (n && (p[n - 1] == '\n' || p[n - 1] == ' ')) n--; fprintf(stderr, "[video] %s %.*s\n", what, (int)(n > 600 ? 600 : n), p); }
@@ -302,7 +302,7 @@ static void stop_session(void) {
   seekTarget = -1; seekRefusedTries = 0; seekRetryAt = 0; seekWait = 0; hold = 0; lastCT = -1;
   if (mid[0]) { char b[128]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\"}", mid); call("unload", b, NULL, NULL); }
 }
-void video_unload(void) { resume.on = 0; pauseAfterSeek = 0; seekReload = 0; timed.on = 0; url[0] = 0; stop_session(); }
+void video_unload(void) { resume.on = 0; pauseAfterSeek = 0; timed.on = 0; url[0] = 0; stop_session(); }
 static void start_load(void) {
   if (!ready && !video_init(NULL)) { pthread_mutex_lock(&mu); S.st = VID_ERROR; S.error = 1; snprintf(S.err, sizeof S.err, "no media service"); pthread_mutex_unlock(&mu); return; }
   stop_session(); txtPending = -2; pthread_mutex_lock(&mu); S.st = VID_LOADING; S.curTxt = -1; if (timed.on) { S.pos = timed.off; S.dur = timed.dur; } pthread_mutex_unlock(&mu); unsigned mine = session;
@@ -313,9 +313,9 @@ static void start_load(void) {
   if (expWin[0]) apply_plane(); /* the exported window gets its frame and place before the load */
   if (!call("load", payload, on_load, (void *)(uintptr_t)mine)) { pthread_mutex_lock(&mu); S.st = VID_ERROR; S.error = 1; snprintf(S.err, sizeof S.err, "no media service"); pthread_mutex_unlock(&mu); }
 }
-void video_load(const char *u) { resume.on = 0; pauseAfterSeek = 0; seekReload = 0; timed.on = 0; snprintf(url, sizeof url, "%s", u ? u : ""); start_load(); }
+void video_load(const char *u) { resume.on = 0; pauseAfterSeek = 0; timed.on = 0; snprintf(url, sizeof url, "%s", u ? u : ""); start_load(); }
 void video_load_timed(const char *base, double durSec) {
-  resume.on = 0; pauseAfterSeek = 0; seekReload = 0; timed.on = 1; timed.off = 0; timed.dur = durSec; snprintf(timed.base, sizeof timed.base, "%s", base); snprintf(url, sizeof url, "%s?t=0", base); start_load();
+  resume.on = 0; pauseAfterSeek = 0; timed.on = 1; timed.off = 0; timed.dur = durSec; snprintf(timed.base, sizeof timed.base, "%s", base); snprintf(url, sizeof url, "%s?t=0", base); start_load();
 }
 static void simple(const char *method) { char mid[64]; pthread_mutex_lock(&mu); snprintf(mid, sizeof mid, "%s", S.mediaId); pthread_mutex_unlock(&mu); if (!mid[0]) return; char b[160]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\"}", mid); call(method, b, NULL, NULL); }
 void video_play(void) { pauseAfterSeek = 0; pthread_mutex_lock(&mu); S.pausedByUs = 0; if (S.st == VID_PAUSED) S.st = VID_PLAYING; pthread_mutex_unlock(&mu); simple("play"); }
@@ -331,21 +331,17 @@ void video_set_volume(int pct, int easeMs) {
 void video_pause(void) { pthread_mutex_lock(&mu); S.pausedByUs = 1; S.st = VID_PAUSED; pthread_mutex_unlock(&mu); simple("pause"); }
 /* presses add up: the shown position moves at once, the pipeline gets one seek 350 ms after the last (four
    seeks in under a second were followed by a dead pipeline) */
-void video_seek(double sec) { if (sec < 0) sec = 0; pthread_mutex_lock(&mu);
-  if (seekTarget < 0) seekOrigin = pos_now();
-  seekReload = !timed.on && S.loaded && sec < seekOrigin - 0.25;
-  S.pos = sec; posAt = SDL_GetTicks() / 1000.0; hold_on(); pthread_mutex_unlock(&mu); seekTarget = sec; seekAt = SDL_GetTicks() + 350; }
+void video_seek(double sec) { if (sec < 0) sec = 0; pthread_mutex_lock(&mu); S.pos = sec; posAt = SDL_GetTicks() / 1000.0; hold_on(); pthread_mutex_unlock(&mu); seekTarget = sec; seekAt = SDL_GetTicks() + 350; }
 static void seek_native(double sec) {
   seekWait = 1; seekWaitAt = SDL_GetTicks(); char mid[64]; pthread_mutex_lock(&mu); snprintf(mid, sizeof mid, "%s", S.mediaId); pthread_mutex_unlock(&mu);
   if (!mid[0]) return; char b[160]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\",\"position\":%d}", mid, (int)(sec * 1000)); call("seek", b, NULL, NULL);
 }
 static void seek_now(double sec) {
-  if (timed.on || seekReload) { /* restart backward seeks with a clean decoder, preserving tracks and pause */
+  if (timed.on) { /* An indexless TS has no native seek: reopen only this existing special path. */
     pthread_mutex_lock(&mu); int aud = S.curAud, txt = S.curTxt, paused = S.pausedByUs; pthread_mutex_unlock(&mu);
-    int continuous = timed.on; seekReload = 0;
-    if (continuous) { timed.off = sec; snprintf(url, sizeof url, "%s?t=%.3f", timed.base, sec); }
+    timed.off = sec; snprintf(url, sizeof url, "%s?t=%.3f", timed.base, sec);
     fprintf(stderr, "[video] fresh media session at %.3f s\n", sec);
-    resume.on = 1; resume.at = continuous ? 0 : sec; resume.aud = aud; resume.txt = txt; resume.paused = paused; start_load(); return;
+    resume.on = 1; resume.at = 0; resume.aud = aud; resume.txt = txt; resume.paused = paused; start_load(); return;
   }
   seek_native(sec);
 }

@@ -21,11 +21,23 @@ PREFIX = r'''
 #include "core/keys.h"
 #include "core/hit.h"
 #include "platform/plat.h"
+#include <SDL2/SDL_webOS.h>
+#include "cJSON.h"
 #include <assert.h>
 #include <dlfcn.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+static SDL_Window *pointerWindow;
+static PlatLunaCb foregroundReply;
+static void *foregroundData;
+static unsigned long foregroundToken;
+unsigned long plat_luna_subscribe(const char *uri, const char *payload, PlatLunaCb cb, void *ud) {
+  (void)uri; (void)payload; foregroundReply=cb; foregroundData=ud; return ++foregroundToken;
+}
+void plat_luna_cancel(unsigned long token) { (void)token; }
 Scr SCR = SCR_HOME;
 static double NOW;
 TopNav topNav = { .want = -1 };
@@ -64,6 +76,7 @@ int main(void) {
   assert(SDL_Init(SDL_INIT_VIDEO) == 0);
   SDL_Window *win = SDL_CreateWindow("cursor test", 0, 0, 640, 480, SDL_WINDOW_SHOWN);
   assert(win); original = SDL_GetCursor(); if (!original) original = SDL_GetDefaultCursor();
+  pointerWindow=win; setenv("APPID","tv.stremioorigin.app",1);
   assert(original); SDL_SetCursor(original); enabled();
   NOW = 10; app_pointer_system(1);
   NOW = 12.99; ptr_frame(); assert(is_shown());
@@ -207,9 +220,25 @@ int main(void) {
   okHold.down=okDown=0;
   puts("PASS a system hide between keyboard and mouse events preserves one complete OK press");
 
+  memset(&pointerFocus,0,sizeof pointerFocus);
+  SDL_Event panel; memset(&panel,0,sizeof panel); panel.type=SDL_APP_DIDENTERBACKGROUND;
+  life=plat_lifecycle(&panel); assert(life==-1); app_pointer_focus(0);
+  plat_lifecycle(NULL); assert(pointerFocus.request && foregroundReply);
+  foregroundReply("{\"foregroundAppInfo\":[{\"appId\":\"com.webos.app.settings\",\"displayId\":0}]}",foregroundData);
+  assert(plat_lifecycle(NULL)==0 && PTR.suspended && is_shown());
+  pointerFocus.nextAt=0; plat_lifecycle(NULL);
+  foregroundReply("{\"foregroundAppInfo\":[{\"appId\":\"tv.stremioorigin.app\",\"displayId\":0}]}",foregroundData);
+  life=plat_lifecycle(NULL); assert(life==1); app_pointer_focus(1);
+  assert(!PTR.suspended && !is_shown());
+  NOW=120; app_pointer_wheel(0,1); before=pointed;
+  app_pointer_button(1,400,100); app_pointer_button(0,400,100);
+  assert(is_shown() && pointed==before+2);
+  NOW=123; ptr_frame(); assert(!is_shown());
+  puts("PASS native foreground proof repairs a system-panel return, including click routing and idle");
+
   app_pointer_focus(0);
   SDL_DestroyWindow(win); SDL_Quit();
-  puts("19 real-SDL pointer scenarios passed; LG TV verification still required");
+  puts("20 real-SDL pointer scenarios passed; LG TV verification still required");
   return 0;
 }
 '''
@@ -280,12 +309,14 @@ def main():
     assert 'app_pointer_focus(life > 0)' in main_source and 'app_pointer_focus(0)' in main_source
     with tempfile.TemporaryDirectory(prefix='stremio-pointer-') as folder:
         tmp = pathlib.Path(folder); c = tmp / 'pointer.c'; binary = tmp / 'pointer'
-        c.write_text(PREFIX + body + function(native, 'plat_lifecycle') + function(source, 'key_cancel_press') + source[start:end] + TESTS)
+        focus_start=native.index('/* ---- foreground state:')
+        focus_end=native.index('/* Settings > Language',focus_start)
+        c.write_text(PREFIX + body + function(native,'plat_map_key') + native[focus_start:focus_end] + function(source, 'key_cancel_press') + source[start:end] + TESTS)
         subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-D_GNU_SOURCE', '-DSB_WEBOS',
                         '-O1', '-g', '-Wall', '-Wextra', '-Wno-unused-function',
                         '-Wno-misleading-indentation', *sdl_include(tmp, args.sdl_include),
                         '-I', str(ROOT / 'src'), '-I', str(ROOT / 'third_party/cjson'),
-                        str(c), '-Wl,--export-dynamic', '-l:libSDL2-2.0.so.0', '-ldl', '-lm',
+                        str(c), str(ROOT/'third_party/cjson/cJSON.c'), '-Wl,--export-dynamic', '-l:libSDL2-2.0.so.0', '-ldl', '-lm',
                         '-o', str(binary)], check=True)
         subprocess.run([str(binary)], check=True, env={**os.environ, 'SDL_VIDEODRIVER': 'x11'})
         failures=tmp/'failures.c';failbin=tmp/'failures'
@@ -294,7 +325,7 @@ def main():
                         '-Werror=implicit-function-declaration',str(failures),'-o',str(failbin)],check=True)
         for mode in range(8):
             subprocess.run([str(failbin),str(mode)],check=True)
-        print('27 cursor scenarios passed: 19 real-SDL, 8 controlled backend/failure cases')
+        print('28 cursor scenarios passed: 20 real-SDL, 8 controlled backend/failure cases')
 
 
 if __name__ == '__main__':

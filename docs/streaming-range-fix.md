@@ -1,24 +1,28 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.8
+## Aktueller Stand: 1.0.9
 
-1.0.8 setzt die ausgewählten Änderungen um: Cursor und Seek stabilisieren,
-unbenötigte Textuntertitel-Abrufe unterlassen. Die native Pufferautomatik,
+1.0.9 korrigiert die Rückkehr aus LG-Systemmenüs und nimmt den erzwungenen
+Stream-Neustart beim normalen Spulen aus 1.0.8 zurück. Die bedarfsgerechten
+Textuntertitel-Abrufe aus 1.0.8 bleiben erhalten. Die native Pufferautomatik,
 funktionierende DTS-Auswahl, mitgelieferte App-Konfiguration und alle
 Originalbibliotheken bleiben erhalten. Es gibt keinen zusätzlichen Proxy.
 
 - Ein verlorenes Pointer-Loslassen wird beim Navigationswechsel oder einer
   neuen Betätigung abgebrochen, ohne die alte Aktion auszulösen. Fehlende
-  Fenster-Fokus-Rückkehr wird nur bei bestätigtem SDL-Tastaturfokus repariert;
-  ein expliziter App-Hintergrundzustand bleibt geschützt. Das transparente
+  Fenster-Fokus-Rückkehr wird zusätzlich über den nativen Vordergrundstatus
+  und tatsächliche Pfeil-/OK-Eingaben für das App-Fenster repariert. Dies gilt
+  auch für einen hängen gebliebenen App-Hintergrundzustand. Bewegung und
+  Cursor-Show-Meldungen gelten nicht als Rückkehrnachweis. Das transparente
   Bild wird nach nativen Bild-Resets erneut gesetzt. Rad-Aktivierung und
   Idle nach Rückkehr bleiben erhalten; native Hide-Meldungen verschlucken
   keinen unabhängigen OK-Tastendruck.
-- Ein Benutzersprung im Konverterpfad erzeugt eine neue Konvertergeneration
-  und Mediensitzung. Alte URLs und wartende Anfragen werden ungültig bzw.
-  beendet. Direktwiedergabe lädt beim Rückwärtssprung die Mediensitzung neu.
-  Zielposition, Tonspur, Untertitelwahl und Pause-Zustand werden erhalten.
-  Dieser Weg kann beim Spulen eine zusätzliche Ladepause verursachen.
+- Normales Vor-/Zurückspulen nutzt wieder den nativen Seek innerhalb derselben
+  Mediensitzung, auch bei DTS-/DV-HLS. Die 350-ms-Zusammenfassung mehrerer
+  Sprünge bleibt erhalten. Nur der bereits im Original vorhandene Sonderpfad
+  für indexlose kontinuierliche TS-Ausgabe benötigt weiterhin einen Neuaufruf
+  mit Zeitparameter. Sein Pause-Zustand bleibt erhalten. Wartende Anfragen
+  eines tatsächlich gestoppten Konverters werden weiterhin abgewiesen.
 - Der MKV-Worker liest weiterhin Header, Audio-/DV-Daten und Kapitel.
   Untertitelindex und Dialogdaten werden erst bei einer angeforderten
   Textspur gelesen. Es wird nur diese Spur im vorhandenen Zeitfenster
@@ -44,8 +48,10 @@ HTTP-Range-Fix, DTS-Korrekturen aus 1.0.4, native Play-Zuordnung aus 1.0.5
 und Cursor-Aktivierung ausschließlich per Scrollrad aus 1.0.6 bleiben erhalten.
 Der Nutzer bestätigt, dass die gewünschte DTS-zu-Dolby-Konvertierung mit 1.0.4
 funktioniert. Diese Auswahlregeln und die Konverterbibliothek bleiben
-erhalten; 1.0.8 ergänzt den beschriebenen Seek-Neustart und bedarfsgerechte
-Untertitelabrufe. Andere Streaming-Ansätze bleiben Vorschläge.
+erhalten. 1.0.8 ergänzte bedarfsgerechte Untertitelabrufe und erzwang einen
+Sitzungsneustart beim Spulen, um den einmal gemeldeten Bildstillstand zu
+umgehen. Diese Neustarts störten laut Rückmeldung selbst kleine Sprünge;
+1.0.9 entfernt sie. Andere Streaming-Ansätze bleiben Vorschläge.
 Ausgangspunkt bleibt das Original 1.0.0, Commit
 `051818e55cf38caed42d597fbcb05bdd3fc5bbd9`. Der übrige Funktionsumfang und die
 Originalressourcen bleiben erhalten. Es gibt keinen zusätzlichen Read-Ahead-Proxy.
@@ -62,7 +68,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.8 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.9 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -94,14 +100,35 @@ ein beim Fokuswechsel gehaltener Klick wird zurückgesetzt. Falls SDL kein
 wiederherstellbares Originalbild oder keinen transparenten Cursor bereitstellt,
 bleibt der vorhandene Zeiger unverändert.
 
-19 Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
+Der Nutzer meldet zu 1.0.8 einen dauerhaft sichtbaren, inaktiven Zeiger nach
+LG-Systemmenüs, während Pfeiltasten und OK weiter die App bedienen. Das passt
+zu einem veralteten Hintergrundzustand: Die Pointer-Handler bleiben gesperrt,
+das ursprüngliche Cursorbild sichtbar, Tasteneingaben laufen jedoch weiter.
+Ein TV-Ereignisprotokoll zum Nachweis liegt nicht vor.
+
+1.0.9 fragt den Vordergrundstatus über `getForegroundAppInfo` ab. Antworten
+werden asynchron verarbeitet, zeitlich begrenzt und bei Fehlern zurückgestellt.
+Ein eindeutiger App-Status plus SDL-Eingabefokus kann die Sperre lösen; gemischte
+Listen mit einem Systempanel gelten nicht als Bestätigung. Kommen Pfeile oder
+OK tatsächlich für das sichtbare App-Fenster an, lösen sie die veraltete Sperre
+auch ohne Servicezugriff. Eine Radbewegung benötigt bei veraltetem SDL-Fokus
+zusätzlich einen aktuellen nativen App-Nachweis. Alte Antworten vor einem
+neueren Fokuswechsel werden verworfen. Bloße Bewegung oder Show-Meldungen
+können den Hintergrundschutz nicht aufheben.
+
+20 Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
 Bildwechsel, Scrollrad-Aktivierung, ignorierte kleine und große Bewegungen, wiederholte
 Show-Meldungen, Klicks im Tastenmodus in beiden Ereignisreihenfolgen,
 Fokuswechsel, gehaltene/verlorene Klicks, Rückkehr mit unverändertem Bild,
 nativen Hide zwischen OK-/Maus-Ereignissen und Beenden.
 Acht zusätzliche Backend-Fälle prüfen fehlende Funktionen,
 fehlendes Originalbild, fehlgeschlagene Erstellung und die Wiederherstellung
-eines benutzerdefinierten Bilds. Das ist kein Nachweis für den geschlossenen
+eines benutzerdefinierten Bilds. 16 weitere Fälle prüfen die neue
+Vordergrund-Abstimmung mit kontrollierten Serviceantworten, darunter 2000
+Menüwechsel, fehlende/alte Meldungen, Home, überlagerte Panels und verweigerten
+Servicezugriff. Die Serviceformen sind am öffentlichen webOS-OSE-Code
+orientiert; die konkrete Antwort und Ereignisfolge des CX sind nicht erfasst.
+Das ist kein Nachweis für den geschlossenen
 LG-Compositor; die Darstellung und das Wiederauftauchen auf dem CX bleiben
 am TV zu prüfen.
 
@@ -298,6 +325,7 @@ jedes Archiv-Eintrags aus dem Original übernommen. Die Paketprüfung verwirft
 source /workspace/stremio-env/activate.sh
 python3 tests/net/run.py --sdl-include "$SDK/usr/include"
 DISPLAY=:97 python3 tests/pointer/run.py --sdl-include "$SDK/usr/include"
+python3 tests/pointer/focus.py --sdl-include "$SDK/usr/include"
 python3 tests/audio/run.py
 python3 tests/remote/run.py --sdl-include "$SDK/usr/include"
 python3 tests/seek/run.py --sdl-include "$SDK/usr/include"
@@ -308,15 +336,17 @@ python3 tests/package/check.py original-1.0.0.ipk candidate.ipk
 
 Die zwölf Transportfälle umfassen feste und Chunked-Antworten, Wiederverwendung,
 Redirects, Dateiende, ignorierte/falsche Ranges, unterbrochene/überlange
-Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 27 Cursor-, 14 Audio-,
-fünf Medien-Tasten-, 16 Seek- und neun MKV-Worker-Fälle. Die zehn Tests des
+Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 28 Cursor-, 16
+Vordergrund-, 14 Audio-, vier Medien-Tasten-, 18 Seek- und neun MKV-Worker-Fälle.
+Insgesamt sind dies 101 Szenarien. Die zehn Tests des
 entfernten Puffer-Experiments bleiben in der Git-Historie. Die Seek-Tests
-prüfen echte Handler mit kontrollierten Serviceantworten sowie den Abbruch
+prüfen native Sitzungswiederverwendung bei kleinen und wiederholten Sprüngen,
+die erhaltene Pause im notwendigen TS-Sonderpfad sowie den Abbruch
 einer wartenden HLS-Anfrage mit echten Threads. Die MKV-Tests verwenden
 einen seekbaren Matroska-Datensatz und zählen die echten Range-Aufrufe des
 Workers für beide Indexpfade; Audio/DV/Kapitel und Sprachwechsel werden geprüft.
 Die native Pufferkonfiguration bleibt unverändert, obwohl der native
-Video-Quellcode jetzt die Seek-Absicherung enthält.
+Video-Quellcode die Pause-Erhaltung im TS-Sonderpfad enthält.
 Der Cursor-Test benötigt echte SDL2 sowie eine
 lokale X-Anzeige (hier `:97`, gegebenenfalls mit `XAUTHORITY`); er verwendet
 keinen abgeschalteten Zeiger. Das ausgelieferte Programm wird auf das Fehlen

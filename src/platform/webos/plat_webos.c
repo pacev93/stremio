@@ -14,8 +14,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <stdint.h>
 
 static char assetDir[1024], dataDir[1024], devName[160];
+static SDL_Window *pointerWindow;
 /* the folder takes a new file (a mount can be read-only, a folder another user's) */
 static int writable_dir(const char *d) {
   char p[1100]; snprintf(p, sizeof p, "%s", d);
@@ -64,7 +66,7 @@ void plat_pre_init(const char *appId) {
   if (r) { r = strchr(r + 15, '"'); if (r) { r++; size_t k = 0; while (*r && *r != '"' && k + 1 < sizeof rel) rel[k++] = *r++; rel[k] = 0; } }
   snprintf(devName, sizeof devName, "LG webOS %s", rel);
 }
-void plat_post_window(SDL_Window *w) { (void)w; }
+void plat_post_window(SDL_Window *w) { pointerWindow = w; }
 void plat_pointer_image(int visible) {
   static SDL_Cursor *(*get)(void), *(*def)(void);
   static SDL_Cursor *(*create)(const Uint8 *, const Uint8 *, int, int, int, int);
@@ -136,28 +138,109 @@ int plat_mem_total_mb(void) {
   char line[128]; long kb = 0; while (fgets(line, sizeof line, f)) if (sscanf(line, "MemTotal: %ld kB", &kb) == 1) break;
   fclose(f); return (int)(kb / 1024);
 }
-/* the TV sends the app to the back for another app, the home launcher or the screen saver, and a relaunch
-   (its icon picked while it runs) brings the same process back: the window loses and regains its focus,
-   with the app-level events where SDL gives them. Only a return after a leave counts, so the first focus at
-   start is not a resume */
+/* ---- foreground state: system panels can return input without an SDL foreground notification ---- */
+static struct {
+  int away, background, source, done, valid, active, error, ownForeground;
+  unsigned epoch, requestedEpoch, ticket, verifiedEpoch; unsigned long request;
+  Uint32 sentAt, nextAt, verifiedAt;
+} pointerFocus;
+static void pointer_foreground_reply(const char *payload, void *ud) {
+  if (!pointerFocus.request || (unsigned)(uintptr_t)ud != pointerFocus.ticket) return;
+  pointerFocus.done = 1; pointerFocus.valid = pointerFocus.error = 0;
+  if (pointerFocus.requestedEpoch != pointerFocus.epoch) return; /* an answer from before a newer input/focus change */
+  cJSON *j = cJSON_Parse(payload), *ok = cJSON_GetObjectItemCaseSensitive(j, "returnValue");
+  if (!j || cJSON_IsFalse(ok)) { pointerFocus.error = 1; cJSON_Delete(j); return; }
+  const char *own = getenv("APPID"); if (!own || !*own) own = "tv.stremioorigin.app";
+  cJSON *apps = cJSON_GetObjectItemCaseSensitive(j, "foregroundAppInfo"), *id = cJSON_GetObjectItemCaseSensitive(j, "appId");
+  if (cJSON_IsArray(apps)) {
+    int ours = 0, other = 0, count = 0; cJSON *app;
+    cJSON_ArrayForEach(app, apps) {
+      cJSON *display = cJSON_GetObjectItemCaseSensitive(app, "displayId");
+      if (cJSON_IsNumber(display) && display->valueint != 0) continue;
+      cJSON *name = cJSON_GetObjectItemCaseSensitive(app, "appId");
+      if (!cJSON_IsString(name) || !name->valuestring[0]) continue;
+      count++; if (!strcmp(name->valuestring, own)) ours = 1; else other = 1;
+    }
+    /* A mixed list can include a system panel over the app: it is no permission to hide its cursor. */
+    if (!(ours && other) && (count || !cJSON_GetArraySize(apps))) { pointerFocus.valid = 1; pointerFocus.active = ours; }
+  } else if (cJSON_IsString(id) && id->valuestring[0]) {
+    int ours = !strcmp(id->valuestring, own);
+    /* ApplicationManager may name a card under a panel; positive fallback also needs SDL input focus. */
+    if (!ours || !pointerFocus.source || (pointerWindow && SDL_GetKeyboardFocus() == pointerWindow)) {
+      pointerFocus.valid = 1; pointerFocus.active = ours;
+    }
+  } else pointerFocus.error = 1;
+  cJSON_Delete(j);
+}
+static int pointer_foreground_poll(void) {
+  Uint32 now = SDL_GetTicks();
+  if (pointerFocus.request && (pointerFocus.done || now - pointerFocus.sentAt >= 2000)) {
+    int current = pointerFocus.requestedEpoch == pointerFocus.epoch;
+    int valid = current && pointerFocus.done && pointerFocus.valid, active = pointerFocus.active;
+    int failed = !pointerFocus.done || pointerFocus.error;
+    plat_luna_cancel(pointerFocus.request); pointerFocus.request = 0;
+    pointerFocus.nextAt = now + (failed && pointerFocus.source ? 30000 : pointerFocus.away ? 500 : 2000);
+    if (failed && !pointerFocus.source) { pointerFocus.source = 1; pointerFocus.nextAt = now; }
+    if (!current) pointerFocus.nextAt = now;
+    pointerFocus.ownForeground = valid && active;
+    pointerFocus.verifiedAt = now; pointerFocus.verifiedEpoch = pointerFocus.epoch;
+    int input = pointerWindow && (SDL_GetKeyboardFocus() == pointerWindow || SDL_GetMouseFocus() == pointerWindow);
+    if (valid && active && input && pointerFocus.away &&
+        !(SDL_GetWindowFlags(pointerWindow) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED))) {
+      pointerFocus.away = pointerFocus.background = 0; pointerFocus.epoch++;
+      fprintf(stderr, "[life] pointer resumed from native foreground state\n"); return 1;
+    }
+    if (valid && !active && !pointerFocus.away) {
+      pointerFocus.away = pointerFocus.background = 1; pointerFocus.epoch++;
+      fprintf(stderr, "[life] pointer suspended for another foreground app\n"); return -1;
+    }
+  }
+  if (!pointerFocus.request && SDL_TICKS_PASSED(now, pointerFocus.nextAt)) {
+    const char *uri = pointerFocus.source ? "luna://com.webos.applicationManager/getForegroundAppInfo" : "luna://com.webos.surfacemanager/getForegroundAppInfo";
+    pointerFocus.done = pointerFocus.valid = pointerFocus.error = 0;
+    pointerFocus.requestedEpoch = pointerFocus.epoch; pointerFocus.sentAt = now;
+    pointerFocus.request = plat_luna_subscribe(uri, "{}", pointer_foreground_reply, (void *)(uintptr_t)++pointerFocus.ticket);
+    if (!pointerFocus.request) { pointerFocus.nextAt = now + 30000; if (!pointerFocus.source) { pointerFocus.source = 1; pointerFocus.nextAt = now; } }
+  }
+  return 0;
+}
 int plat_lifecycle(const SDL_Event *e) {
-  static int away, background;
-  if (!e) { /* Recover a missing window-focus notification only with confirmed SDL keyboard focus. */
-    SDL_Window *w = !background && away ? SDL_GetKeyboardFocus() : NULL;
+  if (!e) {
+    int native = pointer_foreground_poll(); if (native) return native;
+    SDL_Window *w = !pointerFocus.background && pointerFocus.away ? SDL_GetKeyboardFocus() : NULL;
     if (w && !(SDL_GetWindowFlags(w) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED))) {
-      away = 0; fprintf(stderr, "[life] keyboard focus restored without a window notification\n"); return 1; }
+      pointerFocus.away = 0; pointerFocus.epoch++; fprintf(stderr, "[life] keyboard focus restored without a window notification\n"); return 1; }
     return 0;
   }
+  if (pointerFocus.away && pointerWindow && e->type == SDL_KEYDOWN && !e->key.repeat &&
+      (!e->key.windowID || e->key.windowID == SDL_GetWindowID(pointerWindow)) &&
+      !(SDL_GetWindowFlags(pointerWindow) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED))) {
+    int k = plat_map_key(&e->key);
+    if ((k >= K_LEFT && k <= K_DOWN) || k == K_OK) {
+      pointerFocus.epoch++; pointerFocus.away = pointerFocus.background = 0; pointerFocus.nextAt = SDL_GetTicks();
+      fprintf(stderr, "[life] pointer resumed by app navigation input\n"); return 1;
+    }
+  }
+  if (pointerFocus.away && pointerWindow && e->type == SDL_MOUSEWHEEL && (e->wheel.x || e->wheel.y) &&
+      (!e->wheel.windowID || e->wheel.windowID == SDL_GetWindowID(pointerWindow)) &&
+      pointerFocus.ownForeground && pointerFocus.verifiedEpoch == pointerFocus.epoch &&
+      SDL_GetTicks() - pointerFocus.verifiedAt < 2500 &&
+      !(SDL_GetWindowFlags(pointerWindow) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED))) {
+    pointerFocus.epoch++; pointerFocus.away = pointerFocus.background = 0;
+    fprintf(stderr, "[life] pointer resumed by app wheel input and native foreground state\n"); return 1;
+  }
   int in = 0, out = 0;
-  if (e->type == SDL_APP_WILLENTERBACKGROUND || e->type == SDL_APP_DIDENTERBACKGROUND) { background = 1; out = 1; }
-  else if (e->type == SDL_APP_WILLENTERFOREGROUND || e->type == SDL_APP_DIDENTERFOREGROUND) { background = 0; in = 1; }
+  if (e->type == SDL_APP_WILLENTERBACKGROUND || e->type == SDL_APP_DIDENTERBACKGROUND) { pointerFocus.background = 1; out = 1; }
+  else if (e->type == SDL_APP_WILLENTERFOREGROUND || e->type == SDL_APP_DIDENTERFOREGROUND) { pointerFocus.background = 0; in = 1; }
   else if (e->type == SDL_WINDOWEVENT) switch (e->window.event) {
     case SDL_WINDOWEVENT_FOCUS_LOST: case SDL_WINDOWEVENT_HIDDEN: case SDL_WINDOWEVENT_MINIMIZED: out = 1; break;
-    case SDL_WINDOWEVENT_FOCUS_GAINED: background = 0; in = 1; break;
-    case SDL_WINDOWEVENT_SHOWN: case SDL_WINDOWEVENT_RESTORED: if (!background) in = 1; break;
+    case SDL_WINDOWEVENT_FOCUS_GAINED: pointerFocus.background = 0; in = 1; break;
+    case SDL_WINDOWEVENT_SHOWN: case SDL_WINDOWEVENT_RESTORED: if (!pointerFocus.background) in = 1; break;
     default: break; }
-  if (out) { if (!away) fprintf(stderr, "[life] to the back (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0); away = 1; return -1; }
-  if (in && away) { away = 0; fprintf(stderr, "[life] back in front (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0); return 1; }
+  if (out) { if (!pointerFocus.away) fprintf(stderr, "[life] to the back (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0);
+    pointerFocus.away = 1; pointerFocus.epoch++; pointerFocus.nextAt = SDL_GetTicks(); return -1; }
+  if (in && pointerFocus.away) { pointerFocus.away = 0; pointerFocus.epoch++; pointerFocus.nextAt = SDL_GetTicks();
+    fprintf(stderr, "[life] back in front (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0); return 1; }
   return 0;
 }
 /* Settings > Language "Auto": the TV's UI language, from its settings service, as the system apps read it */
