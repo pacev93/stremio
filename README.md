@@ -1,4 +1,4 @@
-# Update 1.0.9
+# Update 1.0.10
 
 Bestehende Homebrew-Adresse unverändert:
 
@@ -7,29 +7,27 @@ https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 Origin vollständig schließen und als Update installieren. Keine Deinstallation
 oder Zurücksetzung erforderlich.
 
-Cursor: Die Rückkehr nach LG-Systemmenüs wird zusätzlich über den nativen
-Vordergrundstatus und tatsächlich an die App gerichtete Pfeil-/OK-Eingaben
-erkannt. Dadurch kann ein hängen gebliebener Hintergrundzustand gelöst werden.
-Veraltete Antworten und mehrdeutige Panel-Zustände lösen keine Freigabe aus.
-Aktivierung nach Ausblenden weiterhin ausschließlich per Scrollrad; Bewegung
-allein aktiviert den Zeiger nicht. Verlorene Klicks werden abgebrochen, ohne
-ihre alte Aktion auszulösen.
+Cursor: Die zusätzliche Vordergrund-Serviceabfrage aus 1.0.9 ist entfernt.
+Sie konnte die gesamte Zeigerbedienung sperren und danach sogar gültige
+Scrollrad-Eingaben für Origin abweisen. Der neue Regressionstest reproduziert
+diese Blockade mit dem 1.0.9-Code und besteht nach der Korrektur.
 
-Spulen: Normale direkte und HLS-Streams bleiben in derselben Mediensitzung.
-Die erzwungenen Konverter-Neustarts und direkten Rückwärts-Neuladungen aus
-1.0.8 sind entfernt. Mehrere Sprünge werden weiterhin zusammengefasst. Der
-bestehende Sonderpfad für indexlose TS-Ausgabe benötigt einen Neuaufruf mit
-Zeitparameter und behält den Pause-Zustand bei.
+Rad- und linke Mausbetätigungen für das App-Fenster reparieren eine fehlende
+Rückkehrmeldung vor Verarbeitung derselben Eingabe. Pfeile/OK und bestätigter
+SDL-Mausfokus können die veraltete Sperre ebenfalls lösen. Bewegung allein
+löst die Rad-Sperre nicht. Aktivierung nach Ausblenden bleibt ausschließlich
+per Scrollrad. Hintergrundereignisse ohne passende Fenster-ID und bloße
+Cursor-Show-Meldungen aktivieren die Bedienung nicht.
 
-Textuntertitel werden weiterhin nur bei Bedarf gelesen. Ton-/Bildmetadaten
-und Kapitel bleiben verfügbar. Native Pufferautomatik und funktionierende
-DTS-Umwandlung bleiben erhalten.
+Spulen, DTS-Umwandlung, native Pufferautomatik und bedarfsgerechte
+Textuntertitelabrufe sind unverändert gegenüber 1.0.9.
 
-101 lokale Regressionsszenarien und ARM-Build erfolgreich. Endgültige IPK
-mit allen 330 Original-Dateneinträgen verglichen: Rechte und Ressourcen
-unverändert, nur Programm und Versionsangabe weichen ab. Originalbibliotheken
-und eingebettete App-Konfiguration bleiben erhalten. Der eingebaute Updater
-verweist weiterhin auf das Originalprojekt. Cursor und Decoderverhalten
-bleiben auf dem aus dieser Umgebung nicht erreichbaren LG CX zu bestätigen.
+46 Cursor-/Fokusprüfungen und ARM-Build bestanden. Dazu gehören 100 wiederholte
+Bildwechsel-/Klick-/Idle-Zyklen mit echter Desktop-SDL und 2000 kontrollierte
+Menürückkehrfälle. Der unveränderte Wiedergabecode behält die 57 Prüfungen aus
+1.0.9. Die endgültige IPK entspricht bei allen 330 Dateneinträgen den originalen
+Rechten; Ressourcen, Bibliotheken und eingebettete App-Konfiguration bleiben
+erhalten. Die tatsächlichen Ereignisse und das Verhalten des LG CX sind aus
+dieser Umgebung weiterhin nicht überprüfbar.
 
-Quellen und Details: https://github.com/pacev93/stremio/tree/11478ef85458a058de47899d43c174a41da9362b/docs/streaming-range-fix.md
+Quellen und Details: https://github.com/pacev93/stremio/tree/3fbe463d32e516353df1eedbac11bce3ade17c60/docs/streaming-range-fix.md
