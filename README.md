@@ -1,23 +1,24 @@
-# Update 1.0.11
+# Update 1.0.12
 
 Bestehende Homebrew-Adresse:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-Origin vollständig schließen und als Update installieren; keine Deinstallation.
+Origin vollständig schließen und als Update installieren. Keine Deinstallation.
 
-Der Zeigerfokus wird beim Verlassen des App-Fensters ausdrücklich abgegeben.
-Tastaturfokus allein holt ihn während eines Systemmenüs nicht zurück. Bei
-adressierter Zeigerrückkehr oder beobachtetem Mausfokuswechsel zurück zu Origin
-werden Klickzustand und Cursorbild gemeinsam wiederhergestellt. Ein zuvor
-verdeckter Cursor bleibt bis zur nächsten Radbewegung verborgen.
+Die zusätzliche Cursor-Leave-Sperre aus 1.0.11 ist zurückgenommen, nachdem
+auch normales Ausblenden und Wiederaktivieren ohne LG-Menü ausfiel.
+Zugestellte Mausbewegungen, linke Tastendrücke und Radereignisse lösen jetzt
+eine veraltete Hintergrundsperre auch bei Fenster-ID 0 oder veralteten
+SDL-Fokus-/Sichtbarkeitsangaben. Explizit fremde Fenster bleiben ausgeschlossen.
+Bewegung allein aktiviert den ausgeblendeten Zeiger weiterhin nicht;
+die Rad-Aktivierung und der vorhandene Klick-/Idle-Pfad bleiben erhalten.
 
-Keine Vordergrund-Serviceabfrage und keine globalen Cursor-Schalter. Wiedergabe,
-Spulen, DTS und Pufferautomatik entsprechen 1.0.10.
+Funktionales Update ohne Diagnoseanzeige. Keine Vordergrund-Serviceabfrage
+und keine globalen Cursor-Schalter. Wiedergabe, DTS, Puffer und Spulen unverändert.
 
 50 lokale Cursor-/Fokusprüfungen, ARM-Build und Paketprüfung bestanden.
 Alle 330 Original-Dateirechte, Ressourcen, Bibliotheken und mitgelieferte
-App-Konfiguration bleiben erhalten. Der konkrete LG-CX-Ablauf ist nicht
-aufgezeichnet und muss am TV geprüft werden. Bei erneutem Fehlschlag folgt
-der Ereignismitschnitt vor weiteren funktionalen Änderungen.
+App-Konfiguration bleiben erhalten. Das Cursorverhalten auf dem CX ist
+weiterhin am TV zu bestätigen.
 
-Details: https://github.com/pacev93/stremio/tree/4582e074a3be866dc2af87291a2e5cc885cf811d/docs/streaming-range-fix.md
+Details: https://github.com/pacev93/stremio/tree/f3e0da29b439e489f6dee29e0d2c99fa7e5c67d9/docs/streaming-range-fix.md

@@ -1,14 +1,14 @@
 {
   "id": "tv.stremioorigin.app",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "type": "native",
   "title": "Stremio Origin",
-  "appDescription": "1.0.11: Zeigerfokus bei LG-Systemmenüs übergeben und wiederherstellen. Verdeckter Cursor bleibt bis zur Radaktivierung verborgen. Wiedergabe unverändert.",
+  "appDescription": "1.0.12: Cursor-Leave-Sperre aus 1.0.11 zurückgenommen. Zugestellte Maus-/Rad-Eingaben lösen die Hintergrundsperre auch ohne Fenster-ID oder bei veraltetem SDL-Fokus. Aktivierung weiterhin per Scrollrad.",
   "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-  "sourceUrl": "https://github.com/pacev93/stremio/tree/4582e074a3be866dc2af87291a2e5cc885cf811d",
+  "sourceUrl": "https://github.com/pacev93/stremio/tree/f3e0da29b439e489f6dee29e0d2c99fa7e5c67d9",
   "rootRequired": false,
-  "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.11_arm.ipk",
+  "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.12_arm.ipk",
   "ipkHash": {
-    "sha256": "3a8921d146f3fbb20d8640905408dd1ae98fcb60580257e0ee1bc5e8ec71810f"
+    "sha256": "a186e20f91d1f5b430837713efba33b775a43401a221bcba084fb1faf81b997e"
   }
 }
