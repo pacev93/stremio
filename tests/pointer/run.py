@@ -261,9 +261,25 @@ int main(void) {
   }
   puts("PASS 100 missing-return cycles retain wheel wake, real SDL images, click actions and idle hiding");
 
+  SDL_WarpMouseInWindow(win,200,100);SDL_PumpEvents();assert(SDL_GetMouseFocus()==win);
+  SDL_Event edge;memset(&edge,0,sizeof edge);edge.type=SDL_WINDOWEVENT;edge.window.windowID=SDL_GetWindowID(win);
+  for(int i=0;i<100;i++) {
+    NOW=1200+i*10;app_key(K_LEFT,1,0);assert(PTR.wheelLocked && !is_shown());
+    edge.window.event=SDL_WINDOWEVENT_LEAVE;pointer_event(&edge);
+    assert(PTR.suspended && is_shown() && plat_lifecycle(NULL)==0);
+    NOW+=4;ptr_frame();assert(is_shown()); /* system menu retains its cursor */
+    edge.window.event=SDL_WINDOWEVENT_ENTER;pointer_event(&edge);
+    assert(!PTR.suspended && PTR.wheelLocked && !is_shown());
+    move.motion.x=410+i%2;pointer_event(&move);assert(!is_shown());
+    pointer_event(&wheel);assert(is_shown() && PTR.on && !PTR.wheelLocked);
+    before=pointed;button.type=SDL_MOUSEBUTTONDOWN;pointer_event(&button);
+    button.type=SDL_MOUSEBUTTONUP;pointer_event(&button);assert(pointed==before+2);
+    NOW+=3;ptr_frame();assert(!is_shown());
+  }
+  puts("PASS 100 quick-panel handovers preserve hidden intent, system cursor, wheel activation and functional clicks");
   app_pointer_focus(0);
   SDL_DestroyWindow(win); SDL_Quit();
-  puts("22 real-SDL pointer scenarios passed; LG TV verification still required");
+  puts("23 real-SDL pointer scenarios passed; LG TV verification still required");
   return 0;
 }
 '''
@@ -350,7 +366,7 @@ def main():
                         '-Werror=implicit-function-declaration',str(failures),'-o',str(failbin)],check=True)
         for mode in range(8):
             subprocess.run([str(failbin),str(mode)],check=True)
-        print('30 cursor scenarios passed: 22 real-SDL, 8 controlled backend/failure cases')
+        print('31 cursor scenarios passed: 23 real-SDL, 8 controlled backend/failure cases')
 
 
 if __name__ == '__main__':

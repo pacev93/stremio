@@ -1,6 +1,28 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.10
+## Aktueller Stand: 1.0.11
+
+1.0.11 ergänzt die funktionale Übergabe des Zeigerfokus bei LG-Systemmenüs.
+`WINDOW_LEAVE` setzt die Cursorbedienung aus und gibt das normale Bild frei.
+Tastaturfokus allein beendet diesen Zustand nicht. Ein an das App-Fenster
+adressiertes `WINDOW_ENTER` übernimmt die Bedienung wieder, auch wenn die
+SDL-Mausfokusabfrage noch hinterherhinkt. Fehlt die Nachricht, kann ein
+beobachteter Wechsel des Mausfokus von außerhalb zurück zur App die Übergabe
+abschließen. Ein unverändert positiver, möglicherweise alter Fokus reicht
+hierfür nicht aus.
+
+Die Rückkehr nutzt gemeinsam den vorhandenen Reset für Klick-/Drag-Zustände
+und das Wiederherstellen des Cursorbilds. Der zuvor ausgeblendete Zustand
+bleibt bis zur nächsten Radbewegung erhalten. Keine Diagnoseversion oder
+neue Systemdienstabfrage; Wiedergabe unverändert gegenüber 1.0.10.
+
+50 lokale Cursor-/Fokusfälle bestanden (31 Bild-/Bedien-/Backendfälle und
+19 Fokusfälle), einschließlich 100 wiederholter Systemmenü-Übergaben mit
+verdecktem Cursor, Radaktivierung und Klicks. Die tatsächlichen CX-Ereignisse
+sind weiterhin unbekannt; der Nutzer hat den funktionalen Patch ohne vorherige
+Diagnose freigegeben. Der TV-Test bleibt erforderlich.
+
+## Änderungen bis 1.0.10
 
 1.0.10 entfernt die Vordergrund-Serviceabfrage aus 1.0.9 nach der Rückmeldung,
 dass der Cursor damit dauerhaft sichtbar und unbedienbar bleibt. Die Rückkehr
@@ -71,7 +93,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.10 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.11 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 

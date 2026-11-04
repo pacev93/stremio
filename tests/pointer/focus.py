@@ -125,7 +125,25 @@ int main(int argc,char **argv) {
     SDL_Event e=window_event(1,SDL_WINDOWEVENT_ENTER);assert(plat_lifecycle(&e)==1);
   } else if (!strcmp(argv[1],"enter-without-focus")) {
     background();keyboard=mouse=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_ENTER);
-    assert(plat_lifecycle(&e)==0);e=motion(1);assert(plat_lifecycle(&e)==0 && pointerFocus.away);
+    assert(plat_lifecycle(&e)==1 && !pointerFocus.away); /* addressed enter wins over lagging SDL cache */
+  } else if (!strcmp(argv[1],"quick-panel")) {
+    mouse=pointerWindow;SDL_Event e=window_event(1,SDL_WINDOWEVENT_LEAVE);
+    assert(plat_lifecycle(&e)==-1);assert(plat_lifecycle(NULL)==0 && pointerFocus.away);
+    mouse=NULL;assert(plat_lifecycle(NULL)==0); /* system owns the pointer, keyboard may stay here */
+    background();e=window_event(1,SDL_WINDOWEVENT_SHOWN);assert(plat_lifecycle(&e)==0);
+    e=navigation(1);e.key.keysym.sym=0;e.key.keysym.scancode=SDL_WEBOS_SCANCODE_BACK;
+    assert(plat_lifecycle(&e)==0); /* Back alone must not claim system focus */
+    mouse=pointerWindow;assert(plat_lifecycle(NULL)==1 && !pointerFocus.away);
+  } else if (!strcmp(argv[1],"stale-pointer-focus")) {
+    mouse=pointerWindow;background();for(int i=0;i<100;i++)assert(plat_lifecycle(NULL)==0);
+    assert(pointerFocus.away); /* no departure was observed */
+  } else if (!strcmp(argv[1],"leave-enter-cycles")) {
+    for(int i=0;i<2000;i++) {
+      mouse=pointerWindow;SDL_Event e=window_event(1,SDL_WINDOWEVENT_LEAVE);
+      assert(plat_lifecycle(&e)==-1 && plat_lifecycle(NULL)==0);
+      mouse=NULL;e=window_event(1,SDL_WINDOWEVENT_ENTER);
+      assert(plat_lifecycle(&e)==1 && !pointerFocus.away && !pointerFocus.pointerLeft);
+    }
   } else if (!strcmp(argv[1],"soft-missing-return")) {
     keyboard=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_LOST);assert(plat_lifecycle(&e)==-1);
     assert(plat_lifecycle(NULL)==0);keyboard=pointerWindow;assert(plat_lifecycle(NULL)==1);
@@ -149,7 +167,7 @@ int main(int argc,char **argv) {
 CASES = ('request-free-loop','wheel-return','click-return','motion-return',
          'navigation-return','legacy-navigation','panel-open','foreign-input',
          'unaddressed-pointer','hidden-window','orphan-release','enter-return',
-         'enter-without-focus','soft-missing-return','foreground-return','repeated-panels')
+         'enter-without-focus','quick-panel','stale-pointer-focus','leave-enter-cycles','soft-missing-return','foreground-return','repeated-panels')
 
 
 def main():
