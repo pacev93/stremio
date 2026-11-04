@@ -29,6 +29,11 @@ PREFIX = r'''
 static SDL_Window *pointerWindow=(SDL_Window *)1;
 static SDL_Window *keyboard=(SDL_Window *)1, *mouse;
 static Uint32 ticks=100, windowFlags=SDL_WINDOW_SHOWN;
+static int raises, redraws;
+static void test_raise(SDL_Window *w) { assert(w==pointerWindow);raises++; }
+static void test_redraw(SDL_Cursor *c) { assert(c==NULL && mouse==pointerWindow);redraws++; }
+#define SDL_RaiseWindow test_raise
+#define SDL_SetCursor test_redraw
 static Uint32 test_ticks(void) { return ticks; }
 static SDL_Window *test_keyboard(void) { return keyboard; }
 static SDL_Window *test_mouse(void) { return mouse; }
@@ -140,6 +145,43 @@ int main(int argc,char **argv) {
       assert(plat_lifecycle(&e)==1 && !pointerFocus.away);
       assert(plat_lifecycle(&e)==0);
     }
+  } else if (!strcmp(argv[1],"native-on-return")) {
+    background();mouse=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_GAINED);
+    assert(plat_lifecycle(&e)==1 && raises==1 && !pointerNative.pending);
+    assert(plat_lifecycle(NULL)==0 && !redraws);
+    mouse=pointerWindow;assert(plat_lifecycle(NULL)==0 && redraws==1);
+    assert(plat_lifecycle(NULL)==0 && redraws==1);
+  } else if (!strcmp(argv[1],"native-key-return")) {
+    background();SDL_Event e=window_event(1,SDL_WINDOWEVENT_SHOWN);
+    assert(plat_lifecycle(&e)==0 && plat_lifecycle(NULL)==0 && !raises);
+    e=navigation(1);e.key.repeat=1;assert(plat_lifecycle(&e)==0 && !raises);
+    e.key.repeat=0;assert(plat_lifecycle(&e)==1 && raises==1);
+    assert(plat_lifecycle(&e)==0 && raises==1);
+  } else if (!strcmp(argv[1],"native-focus-churn")) {
+    background();SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_GAINED);
+    assert(plat_lifecycle(&e)==1 && raises==1);
+    e=motion(1);plat_lifecycle(&e); /* synthesized enter motion must not rearm Raise */
+    for(int i=0;i<100;i++) {
+      e=window_event(1,SDL_WINDOWEVENT_FOCUS_LOST);assert(plat_lifecycle(&e)==-1);
+      e=window_event(1,SDL_WINDOWEVENT_FOCUS_GAINED);assert(plat_lifecycle(&e)==1);
+    }
+    assert(raises==1);
+  } else if (!strcmp(argv[1],"native-next-interaction")) {
+    background();SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_GAINED);
+    assert(plat_lifecycle(&e)==1 && raises==1);
+    e=wheel(1);plat_lifecycle(&e);background();
+    e=window_event(1,SDL_WINDOWEVENT_FOCUS_GAINED);assert(plat_lifecycle(&e)==1 && raises==2);
+  } else if (!strcmp(argv[1],"native-no-cursor-steal")) {
+    SDL_Event e=window_event(1,SDL_WINDOWEVENT_LEAVE);assert(plat_lifecycle(&e)==0);
+    e=navigation(1);e.key.keysym.sym=0;e.key.keysym.scancode=SDL_WEBOS_SCANCODE_CURSOR_SHOW;
+    plat_lifecycle(&e);assert(!raises);
+    background();e=window_event(2,SDL_WINDOWEVENT_FOCUS_GAINED);plat_lifecycle(&e);
+    e=window_event(1,SDL_WINDOWEVENT_SHOWN);plat_lifecycle(&e);plat_lifecycle(NULL);assert(!raises);
+  } else if (!strcmp(argv[1],"native-hidden-window")) {
+    background();windowFlags=SDL_WINDOW_HIDDEN;SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_GAINED);
+    plat_lifecycle(&e);e=navigation(1);plat_lifecycle(&e);assert(!raises);
+    windowFlags=SDL_WINDOW_SHOWN;e=window_event(1,SDL_WINDOWEVENT_SHOWN);plat_lifecycle(&e);assert(!raises);
+    e=navigation(1);plat_lifecycle(&e);assert(raises==1);
   } else if (!strcmp(argv[1],"soft-missing-return")) {
     keyboard=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_LOST);assert(plat_lifecycle(&e)==-1);
     assert(plat_lifecycle(NULL)==0);keyboard=pointerWindow;assert(plat_lifecycle(NULL)==1);
@@ -163,7 +205,7 @@ int main(int argc,char **argv) {
 CASES = ('request-free-loop','wheel-return','click-return','motion-return',
          'navigation-return','legacy-navigation','panel-open','foreign-input',
          'unaddressed-pointer','hidden-window','orphan-release','enter-return',
-         'enter-without-focus','ordinary-hide-leave','zero-id-stale-focus-cycles','soft-missing-return','foreground-return','repeated-panels')
+         'enter-without-focus','ordinary-hide-leave','zero-id-stale-focus-cycles','native-on-return','native-key-return','native-focus-churn','native-next-interaction','native-no-cursor-steal','native-hidden-window','soft-missing-return','foreground-return','repeated-panels')
 
 
 def main():

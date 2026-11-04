@@ -378,7 +378,10 @@ void video_select_text(int idx) {
   snprintf(b, sizeof b, "{\"mediaId\":\"%s\",\"enable\":true}", mid); call("setSubtitleEnable", b, NULL, NULL);
   snprintf(b, sizeof b, "{\"mediaId\":\"%s\",\"type\":\"text\",\"index\":%d}", mid, idx); call("selectTrack", b, NULL, NULL);
 }
-void video_set_surface(int w, int h) { if (w > 0 && h > 0) { surfW = w; surfH = h; fprintf(stderr, "[video] plane rectangles in a %dx%d surface\n", w, h); } }
+void video_set_surface(int w, int h) { if (w > 0 && h > 0 && (surfW != w || surfH != h)) {
+  surfW = w; surfH = h; fprintf(stderr, "[video] plane rectangles in a %dx%d surface\n", w, h);
+  if (acb || expWin[0]) apply_plane(); /* existing picture/crop, no media reload */
+} }
 void video_set_window(float x, float y, float w, float h) {
   int ix = (int)x, iy = (int)y, iw = (int)w, ih = (int)h;
   if (ix < 0) { iw += ix; ix = 0; } if (iy < 0) { ih += iy; iy = 0; } if (ix + iw > 1920) iw = 1920 - ix; if (iy + ih > 1080) ih = 1080 - iy; /* inside the screen, always */

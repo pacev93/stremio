@@ -139,9 +139,24 @@ int plat_mem_total_mb(void) {
 }
 /* ---- foreground state: recover missing returns from input routed to our SDL window ---- */
 static struct { int away, background; } pointerFocus;
+/* Native activation is separate from the app's pointer lock. Never arm it on cursor leave/show.
+   A raise may itself produce focus loss/gain: suppress retries until pointer input works again. */
+static struct { int pending, raised, redraw; } pointerNative;
+static void pointer_activate(void) {
+  if (!pointerNative.pending || pointerNative.raised || !pointerWindow) return;
+  pointerNative.pending = 0; pointerNative.raised = 1; pointerNative.redraw = 1;
+  SDL_RaiseWindow(pointerWindow);
+  fprintf(stderr, "[life] native window reactivation requested\n");
+}
 int plat_lifecycle(const SDL_Event *e) {
   int visible = pointerWindow && !(SDL_GetWindowFlags(pointerWindow) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED));
   if (!e) {
+    /* main has already restored the intended cursor image. NULL forces the backend redraw;
+       re-setting the same cursor object can be a no-op. Without mouse focus it selects the
+       default cursor, so wait until our own window actually has pointer focus. */
+    if (pointerNative.redraw && pointerWindow && SDL_GetMouseFocus() == pointerWindow && visible && !pointerFocus.away) {
+      pointerNative.redraw = 0; SDL_SetCursor(NULL);
+    }
     /* A window-only loss may omit its matching gain. An explicit app background still needs a return/input. */
     if (pointerFocus.away && !pointerFocus.background && visible && SDL_GetKeyboardFocus() == pointerWindow) {
       pointerFocus.away = 0; fprintf(stderr, "[life] keyboard focus restored without a window notification\n"); return 1;
@@ -149,6 +164,23 @@ int plat_lifecycle(const SDL_Event *e) {
     return 0;
   }
   Uint32 window = pointerWindow ? SDL_GetWindowID(pointerWindow) : 0;
+  int physical = (e->type == SDL_MOUSEMOTION && (!e->motion.windowID || e->motion.windowID == window)) ||
+    (e->type == SDL_MOUSEWHEEL && (!e->wheel.windowID || e->wheel.windowID == window) && (e->wheel.x || e->wheel.y)) ||
+    (e->type == SDL_MOUSEBUTTONDOWN && (!e->button.windowID || e->button.windowID == window) && e->button.button == SDL_BUTTON_LEFT);
+  if (physical) {
+    pointerNative.pending = 0;
+    /* Enter can synthesize motion; a wheel/button confirms an actual new interaction. */
+    if (e->type != SDL_MOUSEMOTION) pointerNative.raised = 0;
+  }
+  int navigation = 0;
+  if (e->type == SDL_KEYDOWN && !e->key.repeat && (!e->key.windowID || e->key.windowID == window)) {
+    int k = plat_map_key(&e->key); navigation = (k >= K_LEFT && k <= K_DOWN) || k == K_OK;
+  }
+  int foreground = e->type == SDL_APP_DIDENTERFOREGROUND ||
+    (e->type == SDL_WINDOWEVENT && (!e->window.windowID || e->window.windowID == window) && e->window.event == SDL_WINDOWEVENT_FOCUS_GAINED);
+  /* A cached keyboard focus, SHOWN, or WILLENTERFOREGROUND alone is not permission to raise. */
+  if (visible && foreground && pointerNative.raised) pointerNative.redraw = 1;
+  if (visible && (foreground || navigation)) pointer_activate();
   if (pointerFocus.away && pointerWindow) {
     /* SDL already delivered these physical pointer events to this process. webOS can omit
        their window ID and leave its focus/visibility cache stale after a system panel.
@@ -179,6 +211,8 @@ int plat_lifecycle(const SDL_Event *e) {
     }
   }
   if (out) {
+    pointerNative.redraw = 0;
+    if (!pointerNative.raised) pointerNative.pending = 1;
     if (!pointerFocus.away) fprintf(stderr, "[life] to the back (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0);
     pointerFocus.away = 1; return -1;
   }

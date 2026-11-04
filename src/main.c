@@ -170,6 +170,13 @@ static void p2p_test_tick(int frame) {
     if (PT.cycle < PT.cycles) p2p_resolve(getenv("SB_P2PTEST"), p2p_test_done, NULL);
     else { fprintf(stderr, "[p2ptest] %d cycles done, quitting\n", PT.cycles); app_quit(); } }
 }
+static void resize_surface(SDL_Window *window, int *w, int *h, int *dw, int *dh) {
+  int nw, nh, ndw, ndh;
+  SDL_GetWindowSize(window, &nw, &nh); SDL_GL_GetDrawableSize(window, &ndw, &ndh);
+  if (nw <= 0 || nh <= 0 || ndw <= 0 || ndh <= 0) return;
+  *w = nw; *h = nh; *dw = ndw; *dh = ndh;
+  gfx_resize(ndw, ndh); video_set_surface(ndw, ndh);
+}
 int main(int argc, char **argv) {
   (void)argc; (void)argv;
   setlocale(LC_NUMERIC, "C");
@@ -280,7 +287,7 @@ int main(int argc, char **argv) {
       else if (e.type == SDL_MOUSEMOTION) { if (e.motion.x || e.motion.y) app_pointer_move(e.motion.x * SB_W / w, e.motion.y * SB_H / h); }
       else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) { if (e.button.button == SDL_BUTTON_LEFT) app_pointer_button(e.type == SDL_MOUSEBUTTONDOWN, e.button.x * SB_W / w, e.button.y * SB_H / h); }
       else if (e.type == SDL_MOUSEWHEEL) app_pointer_wheel((float)e.wheel.x, (float)e.wheel.y);
-      else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) { SDL_GL_GetDrawableSize(win, &dw, &dh); gfx_resize(dw, dh); }
+      else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) resize_surface(win, &w, &h, &dw, &dh);
     }
 #ifdef SB_WEBOS
     { int life = plat_lifecycle(NULL); if (life) app_pointer_focus(life > 0); }

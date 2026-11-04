@@ -1,6 +1,44 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.12
+## Aktueller Stand: 1.0.13
+
+1.0.13 setzt den freigegebenen neuen Ansatz um: Nach einer expliziten App-/
+Fenster-Deaktivierung wird einmal eine native Fensteraktivierung angefordert.
+Auslöser sind ein tatsächliches Foreground-/Focus-Gained-Ereignis oder eine
+neue, an die sichtbare App gerichtete Pfeil-/OK-Betätigung. Ein bloßes Leave,
+Cursor-Show, Shown oder eine gepollte Tastaturfokus-Angabe löst keinen Raise aus.
+Die bestehende Cursor-/Rad-Sperrlogik bleibt erhalten.
+
+Die Aktivierungslasche wird vor `SDL_RaiseWindow` verbraucht. Bis zu einer
+Rad-/linken Maustastenbetätigung können nachfolgende Fokusereignisse keinen
+weiteren Raise anfordern; automatisch beim Pointer-Enter erzeugte Bewegung
+hebt diesen Schleifenschutz nicht auf. Echte Pointer-Eingaben benötigen den
+zusätzlichen Raise nicht und benutzen weiter den 1.0.12-Rückkehrpfad.
+
+Das gewünschte Cursorbild wird zuerst vom vorhandenen App-Handler gesetzt.
+Danach fordert `SDL_SetCursor(NULL)` einmal ein echtes Backend-Neuzeichnen
+an, sobald das App-Fenster tatsächlich SDL-Mausfokus besitzt. Im Hintergrund
+wird diese Anforderung verworfen bzw. nicht ausgeführt. Der konstante
+Cursorobjekt-Vergleich mancher SDL-Versionen kann dieses Neuzeichnen nicht
+überspringen. Keine globale Cursor-Sichtbarkeits-API, kein Luna-Polling.
+
+Weil die öffentliche webOS-Implementierung von Raise einen Fullscreen-
+Zustand beim Compositor anfordert, werden tatsächliche Größenänderungen
+vollständig nachgezogen: logische Mauskoordinaten, Drawable-/Grafikgröße und
+native Video-/Crop-Rechtecke. Ungültige temporäre Größen überschreiben keine
+gültige Geometrie. Die Mediensitzung wird dabei nicht neu geladen.
+
+80 lokale Szenarien bestanden: 32 Cursor-, 24 Fokus-, sechs Geometrie- und
+18 Seek-Fälle. Die übrigen 39 Audio-/Medientasten-/MKV-/Transport-Fälle bleiben
+mit unveränderten zugehörigen Quellen aus den vorherigen Prüfungen gültig.
+Die konkrete System-SDL-Version und Compositor-Ereignisfolge des CX sind
+weiterhin nicht erfasst; keine TV-Bestätigung wird behauptet. Der Nutzer hat
+den funktionalen Ansatz nach dem Quellcodevergleich ausdrücklich freigegeben.
+
+Quelle zur nativen Aktivierung und zum Cursor-Neuzeichnen:
+[SDL-webOS, geprüfter Commit 8f8da641](https://github.com/webosbrew/SDL-webOS/tree/8f8da641e197c97a48c46c065e9a69941657bc29).
+
+## Änderungen bis 1.0.12
 
 1.0.12 nimmt die zusätzliche Leave-/Mausfokus-Zustandsmaschine aus 1.0.11
 zurück: Der Nutzer meldet jetzt auch ohne LG-Schnellmenü einen dauerhaft
@@ -119,7 +157,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.12 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.13 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -387,6 +425,7 @@ source /workspace/stremio-env/activate.sh
 python3 tests/net/run.py --sdl-include "$SDK/usr/include"
 DISPLAY=:97 python3 tests/pointer/run.py --sdl-include "$SDK/usr/include"
 python3 tests/pointer/focus.py --sdl-include "$SDK/usr/include"
+python3 tests/pointer/geometry.py
 python3 tests/audio/run.py
 python3 tests/remote/run.py --sdl-include "$SDK/usr/include"
 python3 tests/seek/run.py --sdl-include "$SDK/usr/include"
