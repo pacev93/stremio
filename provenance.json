@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "a8d8eaa6d7d7da37867ffbe4eb309d02c73038d5",
+  "sourceCommit": "11478ef85458a058de47899d43c174a41da9362b",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "8abd2c1c399ac5290b7133a0c0dfdecadd7e5cbcc7b355a5b45d204a5220d0ca",
+  "ipkSha256": "b85f38a527545869352896bf1de30f3e06e29b6487773a8f35ce014b9622e471",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
@@ -12,22 +12,22 @@
   "productionSourceChanges": [
     "src/core/net.c: HTTP 206 keep-alive correction retained",
     "src/core/app.c and app.h: wheel-only cursor; cancel lost presses and reassert hidden image; active return still idles",
-    "src/main.c: lifecycle reconciliation and existing native media-key diagnostics",
-    "src/platform/plat.h and mac/plat_mac.c: existing image interface; documented webOS focus poll",
-    "src/platform/webos/plat_webos.c: image reassertion, confirmed keyboard-focus reconciliation; native Play scancode retained",
-    "src/platform/webos/video_webos.c: backward-seek session reload; track/pause preservation; original buffer payload",
+    "src/main.c: reconcile completed foreground state before app inputs; existing native media-key diagnostics retained",
+    "src/platform/plat.h and mac/plat_mac.c: existing image interface; documented webOS foreground reconciliation",
+    "src/platform/webos/plat_webos.c: native foreground and app-directed navigation recover missing returns; image-only cursor and native Play scancode retained",
+    "src/platform/webos/video_webos.c: restore native forward/backward seeks; pause/track preservation in necessary indexless TS reopen; original buffer payload",
     "src/core/hproxy.c: stopped queued converter requests cannot execute",
     "src/core/mkvsubs.c and mkvsubs.h: subtitle harvesting only on demand",
-    "src/screens/player.c: converter seek restart, temporary sync reference and accurate route/off labels; DTS selection retained"
+    "src/screens/player.c: remove converter restarts on seeks; temporary sync reference and accurate route/off labels; DTS selection retained"
   ],
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.8",
+  "version": "1.0.9",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
-  "cursorStrategy": "Wheel-only wake; local image reassertion; lost-release cancellation; confirmed SDL focus recovery; explicit background protected",
+  "cursorStrategy": "Wheel-only wake; image-only hiding; native foreground reconciliation and app-directed arrow/OK recovery after missing return; stale replies and mixed panels cannot authorize resume",
   "tvFeedback": {
     "1.0.2": {
       "streaming": "User reports buffering appears resolved",
@@ -50,14 +50,19 @@
       "version": "Earlier screenshot shows 1.0.6; version of later cursor/seek reports not confirmed",
       "cursor": "After prolonged use sometimes visible and unresponsive; no identical TV trace captured",
       "seek": "One backward seek left video frozen with audio continuing; restarting the stream helped"
+    },
+    "after-1.0.8": {
+      "version": "Follow-up after release 1.0.8; installed TV version not separately captured",
+      "cursor": "After system settings or prolonged use pointer stays visible and cannot click; arrows and OK still operate the app",
+      "seek": "Full stream reload even on small seeks is disruptive; unconditional reload withdrawn in 1.0.9"
     }
   },
   "playKeyStatus": "Native private LG SDL scancode 450 mapped to Play; separate Pause and normalised toggle retained; CX event capture pending",
-  "cursorScenariosPassed": 27,
-  "realDesktopSdlCursorScenariosPassed": 19,
+  "cursorScenariosPassed": 28,
+  "realDesktopSdlCursorScenariosPassed": 20,
   "cursorBackendScenariosPassed": 8,
   "audioPolicyScenariosPassed": 14,
-  "mediaKeyScenariosPassed": 5,
+  "mediaKeyScenariosPassed": 4,
   "audioValidationScope": "Actual player decisions with stubbed media/transport boundaries; no media decoding or TV playback",
   "playKeyReference": "https://github.com/GLinnik21/plx-native/blob/579f44b97c7de6cc5274e76983eb608f638a7747/docs/remote-keys.md",
   "tvPlayKeyValidated": false,
@@ -67,7 +72,7 @@
     "userBufferCtrl": false,
     "overrideRemoved": true,
     "oldSavedOverrideIgnored": true,
-    "nativeVideoSource": "seek recovery added; bufferControl load payload matches upstream 1.0.0"
+    "nativeVideoSource": "native seeking restored; bufferControl load payload matches upstream 1.0.0"
   },
   "restoredOriginalFiles": [
     "src/screens/settings.c",
@@ -75,20 +80,24 @@
   ],
   "releaseChecks": {
     "armBuild": "passed",
-    "cursor": "27 passed",
+    "cursor": "28 passed",
+    "foreground": "16 passed",
     "audio": "14 passed",
-    "mediaKeys": "5 passed",
-    "seek": "16 passed",
+    "mediaKeys": "4 passed",
+    "seek": "18 passed",
     "mkvWorker": "9 passed",
     "transport": "12 passed",
     "package": "330 original entry modes and unchanged resources verified"
   },
-  "furtherStreamingOptions": "Proposed and evaluated only; awaiting user selection",
-  "binarySha256": "99c79879f6d7554a4403c2f55e8978da4819f0ed5b804d6e1cb19aec2b632fbf",
-  "seekScenariosPassed": 16,
+  "furtherStreamingOptions": "On-demand subtitle reads selected and implemented in 1.0.8; other streaming changes remain proposals",
+  "binarySha256": "7ddb0ded501278b5fe9af26a4b71c69fe7da627b868afb432f283450a9ad3699",
+  "seekScenariosPassed": 18,
   "mkvWorkerScenariosPassed": 9,
-  "totalRegressionScenariosPassed": 83,
+  "totalRegressionScenariosPassed": 101,
   "tvSeekValidated": false,
-  "seekStrategy": "New converter generation for user seeks; native media reload for backward direct seeks; preserve target, tracks and pause",
-  "subtitleStrategy": "Metadata/chapters retained; defer subtitle index; only requested text track near playhead; one temporary Auto-sync reference; stop off retries"
+  "seekStrategy": "Native seek within the existing direct/HLS session; 350 ms debounce retained; reopen only the existing indexless continuous-TS path with pause/track preservation; no unconditional converter restart",
+  "subtitleStrategy": "Metadata/chapters retained; defer subtitle index; only requested text track near playhead; one temporary Auto-sync reference; stop off retries",
+  "foregroundScenariosPassed": 16,
+  "foregroundValidationScope": "Controlled SDL/Luna state tests, including 2000 panel returns; service shapes based on public webOS OSE code; actual CX compositor events/API response not captured",
+  "foregroundApiReference": "https://github.com/webosose/luna-surfacemanager/tree/b2fef6f73232244f6f13102aa66d2d3f5942835e/base/qml/WebOSCompositorBase/services"
 }

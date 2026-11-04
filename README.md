@@ -1,36 +1,35 @@
-# Update 1.0.8
+# Update 1.0.9
 
 Bestehende Homebrew-Adresse unverändert:
 
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
-Als Update installieren, ohne Deinstallation oder Zurücksetzen.
+Origin vollständig schließen und als Update installieren. Keine Deinstallation
+oder Zurücksetzung erforderlich.
 
-Cursor: verlorene Klickzustände werden ohne Auslösen der alten Aktion abgebrochen.
-Bestätigter SDL-Fokus kann eine verlorene Rückkehrmeldung reparieren; ein expliziter
-App-Hintergrund bleibt geschützt. Das ausgeblendete Cursorbild wird bei Bedarf erneut
-gesetzt. Ausschließlich Drehen am Rad aktiviert den ausgeblendeten Zeiger.
+Cursor: Die Rückkehr nach LG-Systemmenüs wird zusätzlich über den nativen
+Vordergrundstatus und tatsächlich an die App gerichtete Pfeil-/OK-Eingaben
+erkannt. Dadurch kann ein hängen gebliebener Hintergrundzustand gelöst werden.
+Veraltete Antworten und mehrdeutige Panel-Zustände lösen keine Freigabe aus.
+Aktivierung nach Ausblenden weiterhin ausschließlich per Scrollrad; Bewegung
+allein aktiviert den Zeiger nicht. Verlorene Klicks werden abgebrochen, ohne
+ihre alte Aktion auszulösen.
 
-Spulen: konvertierte Streams beginnen eine neue Konverter- und Mediensitzung;
-alte Segmentanfragen laufen aus. Direkte Rückwärtssprünge laden die Mediensitzung
-neu. Zielposition, Tonspur, Untertitel und Pause werden erhalten. Zusätzliche
-Ladezeit beim Spulen ist möglich.
+Spulen: Normale direkte und HLS-Streams bleiben in derselben Mediensitzung.
+Die erzwungenen Konverter-Neustarts und direkten Rückwärts-Neuladungen aus
+1.0.8 sind entfernt. Mehrere Sprünge werden weiterhin zusammengefasst. Der
+bestehende Sonderpfad für indexlose TS-Ausgabe benötigt einen Neuaufruf mit
+Zeitparameter und behält den Pause-Zustand bei.
 
-Textuntertitel: Header, Audio-/DV-Daten und Kapitel bleiben verfügbar. Der Index
-und Dialogdaten werden erst bei Bedarf gelesen, nur die angeforderte Textspur im
-vorhandenen Zeitfenster. Off/externe Untertitel erfordern kein laufendes Sammeln
-aller Sprachen. Auto-sync kann vorübergehend eine Referenzspur anfordern und gibt
-sie danach frei. Auch Index-Wiederholungen warten nach dem Ausschalten.
+Textuntertitel werden weiterhin nur bei Bedarf gelesen. Ton-/Bildmetadaten
+und Kapitel bleiben verfügbar. Native Pufferautomatik und funktionierende
+DTS-Umwandlung bleiben erhalten.
 
-Native Pufferautomatik und DTS-Umwandlung bleiben erhalten. Kein neuer Proxy,
-keine Änderung der Range-Größen, keine neue Containerbibliothek. Die Statistik
-kennzeichnet lokale Konvertierung und ausgeschaltete Untertitel korrekt.
+101 lokale Regressionsszenarien und ARM-Build erfolgreich. Endgültige IPK
+mit allen 330 Original-Dateneinträgen verglichen: Rechte und Ressourcen
+unverändert, nur Programm und Versionsangabe weichen ab. Originalbibliotheken
+und eingebettete App-Konfiguration bleiben erhalten. Der eingebaute Updater
+verweist weiterhin auf das Originalprojekt. Cursor und Decoderverhalten
+bleiben auf dem aus dieser Umgebung nicht erreichbaren LG CX zu bestätigen.
 
-83 lokale Regressionsszenarien und ARM-Build erfolgreich. Endgültige IPK mit allen
-330 Original-Dateneinträgen verglichen: Rechte und Ressourcen unverändert, nur
-Programm und Versionsangabe weichen ab. Die eingebettete Original-App-Konfiguration
-bleibt erhalten. Der eingebaute Updater verweist weiterhin auf das Originalprojekt.
-Die geschlossene LG-CX-Pipeline ist aus dieser Umgebung nicht erreichbar; Wiedergabe,
-Seek und Cursor bleiben auf dem TV zu bestätigen.
-
-Quellen und Details: https://github.com/pacev93/stremio/tree/a8d8eaa6d7d7da37867ffbe4eb309d02c73038d5/docs/streaming-range-fix.md
+Quellen und Details: https://github.com/pacev93/stremio/tree/11478ef85458a058de47899d43c174a41da9362b/docs/streaming-range-fix.md
