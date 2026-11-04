@@ -1,6 +1,32 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.11
+## Aktueller Stand: 1.0.12
+
+1.0.12 nimmt die zusätzliche Leave-/Mausfokus-Zustandsmaschine aus 1.0.11
+zurück: Der Nutzer meldet jetzt auch ohne LG-Schnellmenü einen dauerhaft
+sichtbaren und unbedienbaren Zeiger nach Ausblenden und Wiederaktivierung.
+Ein Zeiger-Leave wird deshalb nicht mehr als App-Hintergrund interpretiert.
+
+Auf Basis von 1.0.10 werden tatsächlich zugestellte Mausbewegungen, linke
+Tastendrücke und nichtleere Radereignisse vor Verarbeitung derselben Eingabe
+wieder zugelassen. Eine fehlende Fenster-ID (0), fehlender SDL-Mausfokus oder
+veraltete Hidden-/Minimized-Flags blockieren diese Eingaben nicht mehr.
+Eine explizit fremde Fenster-ID, globale Cursor-Show-Meldungen und verwaiste
+Loslassen-Ereignisse lösen weiterhin keine Rückkehr aus. Keyboard-/Fenster-
+Rückkehrhinweise ohne physische Mausereignisse behalten ihre Sichtbarkeitsprüfung.
+
+Die Bewegung hebt nur eine veraltete Hintergrundsperre auf; die gesonderte
+Rad-Sperre bleibt erhalten. Erst Drehen am Rad aktiviert die Zeigerbedienung.
+Die ursprünglichen Klick-/Idle-Handler werden unverändert weiterverwendet.
+Die vom Nutzer abgelehnte Diagnoseanzeige wurde vollständig entfernt.
+
+50 Cursor-/Fokusfälle bestehen: 32 Bild-/Bedien-/Backendfälle und 18 Fokusfälle.
+Neu geprüft sind normales Leave beim Ausblenden ohne Bedienverlust sowie
+wiederholte Rückkehr mit Fenster-ID 0 und veralteten Fokus-/Sichtbarkeitswerten.
+Die tatsächliche Ereignisfolge des CX bleibt unbekannt; kein TV-Funktionstest
+ist aus dieser Umgebung möglich. Wiedergabe, DTS, Puffer und Spulen unverändert.
+
+## Zurückgenommener Ansatz aus 1.0.11
 
 1.0.11 ergänzt die funktionale Übergabe des Zeigerfokus bei LG-Systemmenüs.
 `WINDOW_LEAVE` setzt die Cursorbedienung aus und gibt das normale Bild frei.
@@ -93,7 +119,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.11 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.12 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 

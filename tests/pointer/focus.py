@@ -101,15 +101,19 @@ int main(int argc,char **argv) {
     for(unsigned i=0;i<sizeof events/sizeof events[0];i++) assert(plat_lifecycle(&events[i])==0);
     assert(pointerFocus.away);
   } else if (!strcmp(argv[1],"unaddressed-pointer")) {
-    background();mouse=pointerWindow;
+    keyboard=mouse=NULL;
     SDL_Event events[]={wheel(0),click(0),motion(0)};
-    for(unsigned i=0;i<sizeof events/sizeof events[0];i++) assert(plat_lifecycle(&events[i])==0);
-    assert(pointerFocus.away);
+    for(unsigned i=0;i<sizeof events/sizeof events[0];i++) {
+      background();assert(plat_lifecycle(&events[i])==1 && !pointerFocus.away);
+    }
   } else if (!strcmp(argv[1],"hidden-window")) {
     background();windowFlags=SDL_WINDOW_HIDDEN;
-    SDL_Event events[]={wheel(1),click(1),navigation(1)};
-    for(unsigned i=0;i<sizeof events/sizeof events[0];i++) assert(plat_lifecycle(&events[i])==0);
-    SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_APP_DIDENTERFOREGROUND;
+    SDL_Event events[]={wheel(1),click(1),motion(0)};
+    for(unsigned i=0;i<sizeof events/sizeof events[0];i++) {
+      if(i)background();assert(plat_lifecycle(&events[i])==1);
+    }
+    background();SDL_Event e=navigation(1);assert(plat_lifecycle(&e)==0);
+    memset(&e,0,sizeof e);e.type=SDL_APP_DIDENTERFOREGROUND;
     assert(plat_lifecycle(&e)==0 && pointerFocus.away);
     windowFlags=SDL_WINDOW_SHOWN;e=window_event(1,SDL_WINDOWEVENT_SHOWN);
     assert(plat_lifecycle(&e)==1 && !pointerFocus.away);
@@ -125,24 +129,16 @@ int main(int argc,char **argv) {
     SDL_Event e=window_event(1,SDL_WINDOWEVENT_ENTER);assert(plat_lifecycle(&e)==1);
   } else if (!strcmp(argv[1],"enter-without-focus")) {
     background();keyboard=mouse=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_ENTER);
-    assert(plat_lifecycle(&e)==1 && !pointerFocus.away); /* addressed enter wins over lagging SDL cache */
-  } else if (!strcmp(argv[1],"quick-panel")) {
-    mouse=pointerWindow;SDL_Event e=window_event(1,SDL_WINDOWEVENT_LEAVE);
-    assert(plat_lifecycle(&e)==-1);assert(plat_lifecycle(NULL)==0 && pointerFocus.away);
-    mouse=NULL;assert(plat_lifecycle(NULL)==0); /* system owns the pointer, keyboard may stay here */
-    background();e=window_event(1,SDL_WINDOWEVENT_SHOWN);assert(plat_lifecycle(&e)==0);
-    e=navigation(1);e.key.keysym.sym=0;e.key.keysym.scancode=SDL_WEBOS_SCANCODE_BACK;
-    assert(plat_lifecycle(&e)==0); /* Back alone must not claim system focus */
-    mouse=pointerWindow;assert(plat_lifecycle(NULL)==1 && !pointerFocus.away);
-  } else if (!strcmp(argv[1],"stale-pointer-focus")) {
-    mouse=pointerWindow;background();for(int i=0;i<100;i++)assert(plat_lifecycle(NULL)==0);
-    assert(pointerFocus.away); /* no departure was observed */
-  } else if (!strcmp(argv[1],"leave-enter-cycles")) {
+    assert(plat_lifecycle(&e)==1);background();e=motion(1);assert(plat_lifecycle(&e)==1 && !pointerFocus.away);
+  } else if (!strcmp(argv[1],"ordinary-hide-leave")) {
+    keyboard=mouse=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_LEAVE);
+    assert(plat_lifecycle(&e)==0 && !pointerFocus.away);
+  } else if (!strcmp(argv[1],"zero-id-stale-focus-cycles")) {
+    keyboard=mouse=NULL;windowFlags=SDL_WINDOW_HIDDEN;
     for(int i=0;i<2000;i++) {
-      mouse=pointerWindow;SDL_Event e=window_event(1,SDL_WINDOWEVENT_LEAVE);
-      assert(plat_lifecycle(&e)==-1 && plat_lifecycle(NULL)==0);
-      mouse=NULL;e=window_event(1,SDL_WINDOWEVENT_ENTER);
-      assert(plat_lifecycle(&e)==1 && !pointerFocus.away && !pointerFocus.pointerLeft);
+      background();SDL_Event e=i%2?wheel(0):motion(0);
+      assert(plat_lifecycle(&e)==1 && !pointerFocus.away);
+      assert(plat_lifecycle(&e)==0);
     }
   } else if (!strcmp(argv[1],"soft-missing-return")) {
     keyboard=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_LOST);assert(plat_lifecycle(&e)==-1);
@@ -167,7 +163,7 @@ int main(int argc,char **argv) {
 CASES = ('request-free-loop','wheel-return','click-return','motion-return',
          'navigation-return','legacy-navigation','panel-open','foreign-input',
          'unaddressed-pointer','hidden-window','orphan-release','enter-return',
-         'enter-without-focus','quick-panel','stale-pointer-focus','leave-enter-cycles','soft-missing-return','foreground-return','repeated-panels')
+         'enter-without-focus','ordinary-hide-leave','zero-id-stale-focus-cycles','soft-missing-return','foreground-return','repeated-panels')
 
 
 def main():

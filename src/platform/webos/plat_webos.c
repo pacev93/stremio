@@ -138,39 +138,32 @@ int plat_mem_total_mb(void) {
   fclose(f); return (int)(kb / 1024);
 }
 /* ---- foreground state: recover missing returns from input routed to our SDL window ---- */
-static struct { int away, background, pointerLeft, mouseDeparted; } pointerFocus;
+static struct { int away, background; } pointerFocus;
 int plat_lifecycle(const SDL_Event *e) {
   int visible = pointerWindow && !(SDL_GetWindowFlags(pointerWindow) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED));
   if (!e) {
-    /* A real mouse-focus departure/return also repairs a system overlay that omits app foreground.
-       A stale positive focus alone is insufficient. While the pointer is outside, keyboard focus
-       must not make us overwrite the system panel's cursor. */
-    if (pointerFocus.away && pointerWindow) {
-      if (SDL_GetMouseFocus() != pointerWindow) pointerFocus.mouseDeparted = 1;
-      else if (pointerFocus.mouseDeparted && visible) {
-        memset(&pointerFocus, 0, sizeof pointerFocus);
-        fprintf(stderr, "[life] pointer focus returned after system overlay\n"); return 1;
-      }
-    }
-    /* A window-only loss may omit its matching gain. */
-    if (pointerFocus.away && !pointerFocus.background && !pointerFocus.pointerLeft && visible && SDL_GetKeyboardFocus() == pointerWindow) {
+    /* A window-only loss may omit its matching gain. An explicit app background still needs a return/input. */
+    if (pointerFocus.away && !pointerFocus.background && visible && SDL_GetKeyboardFocus() == pointerWindow) {
       pointerFocus.away = 0; fprintf(stderr, "[life] keyboard focus restored without a window notification\n"); return 1;
     }
     return 0;
   }
   Uint32 window = pointerWindow ? SDL_GetWindowID(pointerWindow) : 0;
-  if (pointerFocus.away && visible) {
+  if (pointerFocus.away && pointerWindow) {
+    /* SDL already delivered these physical pointer events to this process. webOS can omit
+       their window ID and leave its focus/visibility cache stale after a system panel.
+       Do not require that cache to permit real input; an explicitly different window is excluded. */
     int input = 0;
-    if (e->type == SDL_KEYDOWN && !e->key.repeat && (!e->key.windowID || e->key.windowID == window)) {
+    if (e->type == SDL_MOUSEWHEEL && (!e->wheel.windowID || e->wheel.windowID == window) && (e->wheel.x || e->wheel.y)) input = 1;
+    else if (e->type == SDL_MOUSEBUTTONDOWN && (!e->button.windowID || e->button.windowID == window) && e->button.button == SDL_BUTTON_LEFT) input = 1;
+    else if (e->type == SDL_MOUSEMOTION && (!e->motion.windowID || e->motion.windowID == window)) input = 1;
+    else if (visible && e->type == SDL_KEYDOWN && !e->key.repeat && (!e->key.windowID || e->key.windowID == window)) {
       int k = plat_map_key(&e->key); input = (k >= K_LEFT && k <= K_DOWN) || k == K_OK;
-    } else if (e->type == SDL_MOUSEWHEEL && e->wheel.windowID == window && (e->wheel.x || e->wheel.y)) input = 1;
-    else if (e->type == SDL_MOUSEBUTTONDOWN && e->button.windowID == window && e->button.button == SDL_BUTTON_LEFT) input = 1;
-    else if (e->type == SDL_MOUSEMOTION && e->motion.windowID == window && SDL_GetMouseFocus() == pointerWindow) input = 1;
-    else if (e->type == SDL_WINDOWEVENT && e->window.windowID == window &&
-             e->window.event == SDL_WINDOWEVENT_ENTER) input = 1; /* the addressed enter is the focus transfer; SDL cache may lag */
+    } else if (visible && e->type == SDL_WINDOWEVENT && e->window.windowID == window &&
+               e->window.event == SDL_WINDOWEVENT_ENTER) input = 1;
     if (input) {
-      memset(&pointerFocus, 0, sizeof pointerFocus);
-      fprintf(stderr, "[life] pointer resumed by app-window input (%u)\n", (unsigned)e->type); return 1;
+      pointerFocus.away = pointerFocus.background = 0;
+      fprintf(stderr, "[life] pointer resumed by delivered app input (%u)\n", (unsigned)e->type); return 1;
     }
   }
   int in = 0, out = 0;
@@ -179,7 +172,6 @@ int plat_lifecycle(const SDL_Event *e) {
   else if (e->type == SDL_WINDOWEVENT) {
     if (e->window.windowID && e->window.windowID != window) return 0;
     switch (e->window.event) {
-      case SDL_WINDOWEVENT_LEAVE: pointerFocus.pointerLeft = 1; out = 1; break;
       case SDL_WINDOWEVENT_FOCUS_LOST: case SDL_WINDOWEVENT_HIDDEN: case SDL_WINDOWEVENT_MINIMIZED: out = 1; break;
       case SDL_WINDOWEVENT_FOCUS_GAINED: pointerFocus.background = 0; in = 1; break;
       case SDL_WINDOWEVENT_SHOWN: case SDL_WINDOWEVENT_RESTORED: if (!pointerFocus.background) in = 1; break;
@@ -188,12 +180,10 @@ int plat_lifecycle(const SDL_Event *e) {
   }
   if (out) {
     if (!pointerFocus.away) fprintf(stderr, "[life] to the back (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0);
-    if (!pointerFocus.away) pointerFocus.mouseDeparted = 0;
-    if (pointerWindow && SDL_GetMouseFocus() != pointerWindow) pointerFocus.mouseDeparted = 1;
     pointerFocus.away = 1; return -1;
   }
-  if (in && pointerFocus.away && visible && (!pointerFocus.pointerLeft || SDL_GetMouseFocus() == pointerWindow)) {
-    memset(&pointerFocus, 0, sizeof pointerFocus);
+  if (in && pointerFocus.away && visible) {
+    pointerFocus.away = 0;
     fprintf(stderr, "[life] back in front (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0); return 1;
   }
   return 0;
