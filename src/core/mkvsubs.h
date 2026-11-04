@@ -1,8 +1,8 @@
 /* Subtitles inside Matroska files, without reading the film: the head of the file (tracks,
    chapters), the Cues index, then one small Range per subtitle block nearest the playhead first
    (about 0.1 % of the file). Files without an index are scanned near the playhead, gently. One
-   session per stream harvests every text track at once (muxers keep the same line in all
-   languages side by side), so choosing a track shows its lines at once. Works over debrid links
+   session per stream reads only the requested text track near the playhead; no subtitle
+   index or dialogue is fetched until a track is requested. Works over debrid links
    and the torrent engine's local stream alike. Calls are for the main thread; the reading runs on
    the session's own thread. */
 #ifndef SB_MKVSUBS_H

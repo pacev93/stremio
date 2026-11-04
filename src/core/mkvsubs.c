@@ -25,7 +25,6 @@
 #define READY_AHEAD_S 20.0              /* a chosen track counts as ready once the file is read this far past the playhead */
 #define RATE 3                          /* Ranges a second in the background... */
 #define RATE_URGENT 8                   /* ...and while the window around the playhead is missing */
-#define FULL_TRACK_MAX 8000             /* above this many lines, only around the playhead */
 #define KEEP_BEHIND_S 60.0              /* tracks not chosen keep only this much around the playhead */
 #define KEEP_AHEAD_S 150.0
 #define SEL_MAX 20000                   /* the chosen track keeps everything up to this many lines... */
@@ -513,17 +512,14 @@ static void prune(MkvSession *s) {
     s->nscanned = w;
   }
 }
-/* the next pending point: the window around the playhead for every text track; then (not on torrents) the rest of the chosen one, ahead first */
+/* Only the requested text track, near the playhead. Off/external/native subtitles need no harvesting. */
 static int pick(MkvSession *s, int *urgent) {
+  *urgent = 0; if (s->sel < 0) return -1;
   double now = now_pos(s), lo = now - BEHIND_S, hi = now + (s->p2p ? P2P_AHEAD_S : AHEAD_S);
   if (s->p2p && s->buffered >= 0) hi = now + fmin(P2P_AHEAD_S, s->buffered + P2P_MIN_AHEAD_S); /* a piece not downloaded yet blocks the read (and pulls the engine away from the playhead) */
   int a = 0, z = s->nall; while (a < z) { int m = (a + z) >> 1; if (s->all[m].t < lo) a = m + 1; else z = m; }
-  int i; for (i = a; i < s->nall && s->all[i].t <= hi; i++) if (!s->status[i]) { *urgent = 1; return i; }
-  *urgent = 0;
-  if (s->p2p || s->sel < 0) return -1;
-  TState *sel = ts_of(s, s->sel); if (!sel || sel->total > FULL_TRACK_MAX) return -1;
-  for (; i < s->nall; i++) if (!s->status[i] && s->all[i].num == s->sel) return i;
-  for (i = a - 1; i >= 0; i--) if (!s->status[i] && s->all[i].num == s->sel) return i;
+  for (int i = a; i < s->nall && s->all[i].t <= hi; i++)
+    if (!s->status[i] && s->all[i].num == s->sel) { *urgent = 1; return i; }
   return -1;
 }
 /* points sharing the Range of point i: the same Cluster, any track, within MERGE_BYTES */
@@ -532,7 +528,7 @@ static int group(MkvSession *s, int i, int *g) {
   for (int dir = -1; dir <= 1; dir += 2)
     for (int j = i + dir; j >= 0 && j < s->nall && n < 96; j += dir) {
       Point *p = &s->all[j]; if (fabs(p->t - p0->t) > 30) break;
-      if (s->status[j] || p->cl != p0->cl) continue;
+      if (s->status[j] || p->cl != p0->cl || p->num != p0->num) continue;
       if (p0->rel < 0 || p->rel < 0) { if (p0->rel < 0 && p->rel < 0) g[n++] = j; continue; }
       if (labs(p->rel - p0->rel) <= MERGE_BYTES) g[n++] = j;
     }
@@ -732,7 +728,12 @@ static void *session_main(void *arg) { plat_thread_background(5);
   unlock(s);
   if (!any) { read_chapters(s); fallback(s, "notext"); goto out; }
   read_chapters(s);
-  for (int a = 0;; a++) { e = load_cues(s); if (s->dead) goto out; if (net_err(e) && a < 4) { wait_for(s, retry[a]); continue; } break; }
+  /* Tracks/audio/DV/chapters are available without fetching a subtitle index or dialogue. */
+  for (int a = 0;; a++) {
+    for (;;) { lock(s); int wanted = s->sel >= 0, dead = s->dead; unlock(s);
+      if (dead) goto out; if (wanted) break; wait_for(s, 1.0); }
+    e = load_cues(s); if (s->dead) goto out; if (net_err(e) && a < 4) { wait_for(s, retry[a]); continue; } break;
+  }
   if (e != NR_OK && e != 1) { fallback(s, errname(e)); goto out; }
   lock(s);
   s->nall = 0; s->all = malloc((s->info.npts + 1) * sizeof *s->all);
@@ -747,11 +748,13 @@ static void *session_main(void *arg) { plat_thread_background(5);
   fprintf(stderr, "[mkv] %d text track(s), %d index points%s\n", s->nts, s->nall, s->hasScan ? ", scanning near the playhead for the rest" : "");
   int g[96];
   while (!s->dead) {
-    lock(s); if (mono() - s->prunedAt > PRUNE_EVERY) prune(s); unlock(s);
+    lock(s); if (mono() - s->prunedAt > PRUNE_EVERY) prune(s);
+    TState *selected = ts_of(s, s->sel); int wanted = selected != NULL, scan = selected && selected->scan && s->hasScan; unlock(s);
+    if (!wanted) { wait_for(s, 1.0); continue; }
     double w = s->backoffUntil - mono(); if (w > 0) { wait_for(s, w); continue; }
     lock(s); int urgent = 0, i = pick(s, &urgent); unlock(s);
     if (i < 0) {
-      if (!s->hasScan) { wait_for(s, 1.0); continue; } /* wait for the playhead */
+      if (!scan) { wait_for(s, 1.0); continue; } /* no scanning for an unselected track */
       /* scan: the lines at the playhead are urgent; beyond that gently, never while the player's buffer is low */
       double now = now_pos(s), lo = now - BEHIND_S, hi = now + SCAN_AHEAD_S;
       if (s->cur.on && ((s->cur.ts >= 0 && s->cur.ts < lo - 120) || s->cur.ts > hi + 120)) s->cur.on = 0;

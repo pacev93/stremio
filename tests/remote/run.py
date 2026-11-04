@@ -19,7 +19,7 @@ PREFIX = r'''
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-static struct { int open, live, started, failed, canNext, ssOn, mode, hvOn; double lastAct; } P;
+static struct { int open, live, started, failed, canNext, ssOn, mode, hvOn; double lastAct; struct { int pauseAfterSeek; } dts; } P;
 static VidState state = VID_PLAYING;
 static int plays, pauses;
 VidState video_state(void) { return state; }
@@ -66,7 +66,10 @@ int main(void) {
   player_key(map(SDLK_AUDIOPLAY,SDL_SCANCODE_AUDIOPLAY),1); assert(state==VID_PAUSED);
   player_key(map(SDLK_AUDIOPLAY,SDL_SCANCODE_AUDIOPLAY),1); assert(state==VID_PLAYING);
   puts("PASS combined Play/Pause key still toggles");
-  puts("4 media-key scenarios passed; actual remote event encoding not observed on TV");
+  P.dts.pauseAfterSeek=1; player_key(map(0,450),1);
+  assert(!P.dts.pauseAfterSeek && state==VID_PLAYING);
+  puts("PASS explicit Play cancels a pending pause restoration after converted seeking");
+  puts("5 media-key scenarios passed; actual remote event encoding not observed on TV");
   return 0;
 }
 '''

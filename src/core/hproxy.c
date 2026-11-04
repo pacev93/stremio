@@ -187,7 +187,9 @@ static void conv_serve(int fd, unsigned id, const char *path, int head) {
      one's run would wait for that player) */
   if (!send_all(fd, h, strlen(h))) { conv_unref(c); return; }
   pthread_mutex_lock(&mu); int follows = seg >= 0 && c->running >= 0 && seg == c->running + 1; if (!follows) c->stop = 1; pthread_mutex_unlock(&mu);
-  pthread_mutex_lock(&c->runMu); c->stop = c->dead;
+  pthread_mutex_lock(&c->runMu);
+  if (c->dead) { pthread_mutex_unlock(&c->runMu); conv_unref(c); return; } /* a queued request from before a seek must not run */
+  c->stop = 0;
   pthread_mutex_lock(&mu); c->running = seg; pthread_mutex_unlock(&mu);
   {
     sbd_stats st; char err[160] = ""; c->rd.stop = &c->stop;

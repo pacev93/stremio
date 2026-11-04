@@ -768,13 +768,19 @@ static void key_core(int k, int down, int repeat);
 #define PTR_DEDUPE 0.15
 #define PTR_WHEEL 0.07
 #define PTR_IDLE_S 3.0
-static struct { int on; float x, y; Hit hv; int hasHv; float hx, hy; double movedAt; int down, downAct; Hit act; double okKeyAt, clickAt, wheelAt; int eatUp, eatOk, wheelLocked; int dirty; double usedAt; int suspended; } PTR;
-static void ptr_show(void) { PTR.wheelLocked = 0; if (PTR.on) return; PTR.on = 1; PTR.hasHv = 0; PTR.usedAt = NOW; plat_pointer_image(1); }
+static void key_cancel_press(void);
+static struct { int on; float x, y; Hit hv; int hasHv; float hx, hy; double movedAt; int down, downAct; Hit act; double okKeyAt, clickAt, wheelAt; int eatUp, eatOk, wheelLocked; int dirty; double usedAt, imageAt; int suspended; } PTR;
+static void ptr_cancel_press(void) {
+  if (PTR.down == 2) { extern void player_ptr(int type, float x, float y); player_ptr(3, PTR.x, PTR.y); }
+  key_cancel_press(); PTR.down = PTR.downAct = PTR.eatUp = PTR.eatOk = 0; PTR.okKeyAt = PTR.clickAt = 0;
+}
+static void ptr_show(void) { PTR.wheelLocked = 0; plat_pointer_image(1); if (PTR.on) return; PTR.on = 1; PTR.hasHv = 0; PTR.usedAt = NOW; }
 static void ptr_hide(void) {
   if (PTR.suspended) return;
+  if (PTR.down) ptr_cancel_press(); /* an idle/system hide must not cancel an independent keyboard OK press */
   PTR.on = 0; PTR.hasHv = 0; PTR.dirty = 0;
   PTR.wheelLocked = 1;
-  plat_pointer_image(0);
+  plat_pointer_image(0); PTR.imageAt = NOW;
 }
 static void ptr_nav_back(void) { if (topNav.want >= 0) return; Scr cur = (SCR == SCR_DETAIL || SCR == SCR_SIM) ? SCR_HOME : SCR; for (int j = 2; j < 5; j++) if (chipScr(j) == cur && topNav.idx != j) { topNav.idx = j; topnav_paint(); } }
 static void ptr_keep(const Hit *h) { PTR.hv = *h; PTR.hasHv = 1; PTR.hx = h->x + h->w / 2; PTR.hy = h->y + h->h / 2; }
@@ -787,6 +793,7 @@ static void ptr_frame(void) {
   if (PTR.suspended) return;
 #ifdef SB_WEBOS
   if (PTR.on && !PTR.down && NOW - PTR.usedAt >= PTR_IDLE_S) ptr_hide();
+  if (PTR.wheelLocked && NOW - PTR.imageAt >= 1.0) { plat_pointer_image(0); PTR.imageAt = NOW; }
 #endif
   if (!PTR.on || !PTR.dirty) return; PTR.dirty = 0; double now = NOW; if (player_open()) { extern void player_ptr(int type, float x, float y); player_ptr(0, PTR.x, PTR.y); return; }
   if (PTR.down) return; /* pressed: a hand's tremble must not move the press onto the next card */
@@ -801,6 +808,7 @@ void app_pointer_button(int down, float x, float y) {
   double now = NOW; PTR.x = x; PTR.y = y; PTR.usedAt = now;
   if (saver_on()) return; /* the screensaver covers the page: nothing under it is pressed */
   if (down) { idle_touch();
+    if (PTR.down && now - PTR.clickAt >= PTR_DEDUPE) ptr_cancel_press(); /* a new press after a lost release */
     if (PTR.okKeyAt && now - PTR.okKeyAt < PTR_DEDUPE) { PTR.eatUp = 1; return; } /* the OK key of this same press came first */
     PTR.clickAt = now;
     if (PTR.wheelLocked) { PTR.down = 1; key_core(K_OK, 1, 0); return; } /* inactive pointer: confirm the keyboard focus */
@@ -824,11 +832,12 @@ void app_pointer_wheel(float dx, float dy) { double now = NOW; if (PTR.suspended
 void app_pointer_system(int show) {
   if (PTR.suspended) return;
   if (!show) { ptr_hide(); return; }
-  if (PTR.wheelLocked) return; /* only the wheel leaves keyboard/idle mode */
+  if (PTR.wheelLocked) { plat_pointer_image(0); PTR.imageAt = NOW; return; } /* restore the image if webOS reset it; only the wheel unlocks */
   ptr_show();
 }
 void app_pointer_focus(int active) {
-  PTR.suspended = !active; PTR.on = 0; PTR.hasHv = 0; PTR.dirty = 0;
+  ptr_cancel_press();
+  PTR.suspended = !active; PTR.on = active && !PTR.wheelLocked; PTR.usedAt = NOW; PTR.hasHv = 0; PTR.dirty = 0;
   PTR.down = 0; PTR.downAct = 0; PTR.eatUp = 0; PTR.eatOk = 0;
   plat_pointer_image(active && PTR.wheelLocked ? 0 : 1); /* Home gets the original; our lock survives a return */
 }
@@ -837,7 +846,7 @@ void app_key(int k, int down, int repeat) {
   if (down && k == K_OK && !repeat) { if (PTR.eatOk || PTR.down || (PTR.clickAt && NOW - PTR.clickAt < PTR_DEDUPE)) { PTR.eatOk = 1; return; } PTR.okKeyAt = NOW; } /* the click of this same press came first */
   if (!down && k == K_OK && PTR.eatOk) { PTR.eatOk = 0; return; }
   if (down && saver_on() && k != K_CURSOR_SHOW && k != K_CURSOR_HIDE) { saver_stop(); idle_touch(); if (k == K_OK) PTR.eatOk = 1; return; } /* the key that wakes the screensaver does nothing else */
-  if (down && k >= K_LEFT && k <= K_DOWN) ptr_hide(); /* every arrow re-arms it, hidden or not */
+  if (down && k >= K_LEFT && k <= K_DOWN) { ptr_cancel_press(); ptr_hide(); } /* a real navigation change cancels a lost press */
   key_core(k, down, repeat);
 }
 /* where the focus is, as far as can be told from outside: the screen, the open sheet, the top bar, the centre of
@@ -852,6 +861,7 @@ static void key_dispatch(int k, int repeat);
 static int keyHeld; /* the key being handled is a repeat of a held one */
 int app_key_held(void) { return keyHeld; }
 static int okDown; /* OK is down (a key or the pointer's button) */
+static void key_cancel_press(void) { okDown = 0; memset(&okHold, 0, sizeof okHold); menuGuard = 0; } /* cancellation never activates the old target */
 int app_ok_down(void) { return okDown; }
 float app_hold_k(double at) { float x = (float)((NOW - at) * 1000 - 220) / (HOLD_MS - 220); return x < 0 ? 0 : x > 1 ? 1 : x; }
 static void key_core(int k, int down, int repeat) {

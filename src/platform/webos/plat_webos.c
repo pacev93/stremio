@@ -80,7 +80,8 @@ void plat_pointer_image(int visible) {
   if (!get || !create || !set) return; /* leave the normal pointer intact */
   if (visible) { if (shown) { set(shown); shown = NULL; } return; }
   SDL_Cursor *current = get(); if (!current && def) current = def();
-  if (!current || current == blank) return; /* need a real image to restore */
+  if (!current) return; /* need a real image to restore */
+  if (current == blank) { set(blank); return; } /* the compositor may have replaced the image without changing SDL's cursor */
   if (!createTried) {
     const Uint8 bits[8] = { 0 }; createTried = 1;
     blank = create(bits, bits, 8, 8, 0, 0);
@@ -140,13 +141,20 @@ int plat_mem_total_mb(void) {
    with the app-level events where SDL gives them. Only a return after a leave counts, so the first focus at
    start is not a resume */
 int plat_lifecycle(const SDL_Event *e) {
-  static int away;
+  static int away, background;
+  if (!e) { /* Recover a missing window-focus notification only with confirmed SDL keyboard focus. */
+    SDL_Window *w = !background && away ? SDL_GetKeyboardFocus() : NULL;
+    if (w && !(SDL_GetWindowFlags(w) & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED))) {
+      away = 0; fprintf(stderr, "[life] keyboard focus restored without a window notification\n"); return 1; }
+    return 0;
+  }
   int in = 0, out = 0;
-  if (e->type == SDL_APP_WILLENTERBACKGROUND || e->type == SDL_APP_DIDENTERBACKGROUND) out = 1;
-  else if (e->type == SDL_APP_WILLENTERFOREGROUND || e->type == SDL_APP_DIDENTERFOREGROUND) in = 1;
+  if (e->type == SDL_APP_WILLENTERBACKGROUND || e->type == SDL_APP_DIDENTERBACKGROUND) { background = 1; out = 1; }
+  else if (e->type == SDL_APP_WILLENTERFOREGROUND || e->type == SDL_APP_DIDENTERFOREGROUND) { background = 0; in = 1; }
   else if (e->type == SDL_WINDOWEVENT) switch (e->window.event) {
     case SDL_WINDOWEVENT_FOCUS_LOST: case SDL_WINDOWEVENT_HIDDEN: case SDL_WINDOWEVENT_MINIMIZED: out = 1; break;
-    case SDL_WINDOWEVENT_FOCUS_GAINED: case SDL_WINDOWEVENT_SHOWN: case SDL_WINDOWEVENT_RESTORED: in = 1; break;
+    case SDL_WINDOWEVENT_FOCUS_GAINED: background = 0; in = 1; break;
+    case SDL_WINDOWEVENT_SHOWN: case SDL_WINDOWEVENT_RESTORED: if (!background) in = 1; break;
     default: break; }
   if (out) { if (!away) fprintf(stderr, "[life] to the back (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0); away = 1; return -1; }
   if (in && away) { away = 0; fprintf(stderr, "[life] back in front (%d/%d)\n", e->type, e->type == SDL_WINDOWEVENT ? e->window.event : 0); return 1; }

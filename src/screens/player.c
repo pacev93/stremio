@@ -139,7 +139,7 @@ static struct {
     int conv, convOrd, hevc; double convAt, convT0, okAt, deferUntil;
     /* the same conversion for a Dolby Vision profile 7 picture: dv the picture goes out as 8.1, copyA the audio track as
        it is, dvTried started once already, dvSeen what the TV showed was checked */
-    int dv, copyA, dvTried, dvSeen; double dvAt; } dts;
+    int dv, copyA, dvTried, dvSeen, pauseAfterSeek; double dvAt; } dts;
   int assPlain; /* styled subtitles were too slow here: plain for the rest of this film */ double lastSave; int marked; char aspect[8]; const char *res; char infoKey[256]; int pausedShown; double pausedAt;
   /* torrents: resolved by the engine first; the file's own subtitles and chapters from the stream itself */
   int isP2p, resolving; double posTick; int mkvTracksOk, chapWant;
@@ -421,12 +421,14 @@ static void load_emb_tracks(void) {
    against: a file with no text tracks (most HTTP and debrid files) is matched against another subtitle made for this
    file instead, found and read by the job itself; nothing of the kind: nothing to sync against. ---- */
 static struct { SubSync *job; int phase; /* 0 idle, 1 waiting for the reference, 2 matching */ int stage; double t0, nextAt, center; char st[160]; double *base; int nbase;
-  int quiet, autoWant; unsigned autoTok; double autoAt; /* quiet: the check of a subtitle the app chose by itself, unseen unless it fixes something */ } SY;
+  int quiet, autoWant, refOn; unsigned autoTok; double autoAt; /* quiet: the check of a subtitle the app chose by itself, unseen unless it fixes something */ } SY;
+static void sync_release_ref(void) { if (SY.refOn && mkv) mkv_select(mkv, -1); SY.refOn = 0; }
 static void sync_stop(int keepTimes) {
+  sync_release_ref();
   if (SY.job) { subsync_drop(SY.job); SY.job = NULL; } SY.phase = 0; SY.st[0] = 0; SY.quiet = 0;
   if (!keepTimes) { free(SY.base); SY.base = NULL; SY.nbase = 0; }
 }
-static void sync_end(const char *why) { if (SY.job) { subsync_drop(SY.job); SY.job = NULL; } SY.phase = 0; if (!SY.quiet) snprintf(SY.st, sizeof SY.st, "%s", why); fprintf(stderr, "[subsync] %s%s\n", SY.quiet ? "(by itself) " : "", why); SY.quiet = 0; refresh_tray(4); }
+static void sync_end(const char *why) { sync_release_ref(); if (SY.job) { subsync_drop(SY.job); SY.job = NULL; } SY.phase = 0; if (!SY.quiet) snprintf(SY.st, sizeof SY.st, "%s", why); fprintf(stderr, "[subsync] %s%s\n", SY.quiet ? "(by itself) " : "", why); SY.quiet = 0; refresh_tray(4); }
 static void sync_undo(void) { /* Reset: the lines' own times again */
   if (SY.base && SY.nbase == P.ncues) { for (int i = 0; i < P.ncues; i++) { P.cues[i].s = SY.base[2 * i]; P.cues[i].e = SY.base[2 * i + 1]; } cueTimesGen++; }
   sync_stop(0);
@@ -448,6 +450,7 @@ static const char *sync_wait_txt(int stage) { return stage ? T("Looking for a ma
 /* no text track to match against: every other subtitle listed for this video goes to the job, which keeps those made
    for this file (by hash, carried by the stream, by file name) and asks OpenSubtitles with the file's hash */
 static void sync_by_ref(const char *why) {
+  sync_release_ref();
   int cap = P.nExt + P.nAdx, n = 0; SyncRef *rs = calloc((size_t)(cap ? cap : 1), sizeof *rs); if (!rs) { sync_end(T("Couldn’t sync")); return; }
   for (int l = 1; l <= 2; l++) { const SubEntry *L = l == 1 ? P.ext : P.adx; int nl = l == 1 ? P.nExt : P.nAdx;
     for (int i = 0; i < nl; i++) { const SubEntry *e = &L[i]; if (sub_is(l, e)) continue; SyncRef *r = &rs[n++];
@@ -496,9 +499,10 @@ static void sync_tick(void) {
   int st = mkv ? mkv_state(mkv) : MKV_FALLBACK, listed = mkv && st != MKV_FALLBACK && mkv_listed(mkv);
   if (st == MKV_FALLBACK) { sync_by_ref("not a file whose tracks can be read"); return; }
   MkvTrack tr[16]; int nt = listed ? mkv_tracks(mkv, tr, 16) : 0, ntext = 0;
-  double lo = SY.center - SYNC_BEHIND_S, hi = SY.center + SYNC_AHEAD_S; int best = -1, bestN = 0;
-  for (int i = 0; i < nt; i++) { if (!tr[i].text) continue; ntext++; int c = mkv_lines_in(mkv, tr[i].n, lo, hi, NULL, 0, NULL, 0); if (c > bestN) { bestN = c; best = tr[i].n; } }
+  double lo = SY.center - SYNC_BEHIND_S, hi = SY.center + SYNC_AHEAD_S; int best = -1, bestN = 0, first = -1;
+  for (int i = 0; i < nt; i++) { if (!tr[i].text) continue; if (first < 0) first = tr[i].n; ntext++; int c = mkv_lines_in(mkv, tr[i].n, lo, hi, NULL, 0, NULL, 0); if (c > bestN) { bestN = c; best = tr[i].n; } }
   if (listed && !ntext) { sync_by_ref("no text track in the file"); return; } /* the file has no text tracks at all */
+  if (first >= 0 && bestN < 12 && !SY.refOn) { mkv_select(mkv, best >= 0 ? best : first); SY.refOn = 1; } /* one reference, only while a sync needs it */
   if (bestN >= 12) {
     int cap = bestN < 3000 ? bestN : 3000, tcap = cap * 96; MkvLine *ml = malloc((size_t)cap * sizeof *ml); char *tb = malloc((size_t)tcap); SyncLine *rl = malloc((size_t)cap * sizeof *rl);
     Cue *xs = sync_xs();
@@ -508,9 +512,9 @@ static void sync_tick(void) {
     fprintf(stderr, "[subsync] reference: track #%d, %d lines near %.0f s after %.1f s\n", best, bestN, SY.center, now_() - SY.t0);
     SY.job = subsync_start(xs, P.ncues, rl, k, SY.center); free(ml); free(tb); free(rl); free(xs); /* (it keeps its own copies) */
     if (!SY.job) { sync_end(T("Couldn’t sync")); return; }
-    SY.phase = 2; return; }
+    sync_release_ref(); SY.phase = 2; return; }
   /* its own tracks are the best reference by far: while they are being read keep waiting, up to 45 s */
-  double limit = listed && st == MKV_HARVESTING ? 45 : 12;
+  double limit = listed && (st == MKV_HARVESTING || SY.refOn) ? 45 : 12;
   if (now_() - SY.t0 > limit) { fprintf(stderr, "[subsync] reference: %d lines near %.0f s after %.0f s\n", bestN, SY.center, now_() - SY.t0);
     if (ntext) sync_end(T("Still reading the film’s subtitles: try again in a minute")); else sync_by_ref("the file's tracks were not read in time"); }
 }
@@ -872,7 +876,20 @@ static void seek_by(int dir) {
   if (a >= 60) snprintf(P.seekTxt, sizeof P.seekTxt, "%s%s%s%s", dd >= 0 ? "+" : "-", T1("{m}m", "m", m), a % 60 ? " " : "", a % 60 ? T1("{s}s", "s", s) : ""); else snprintf(P.seekTxt, sizeof P.seekTxt, "%s%s", dd >= 0 ? "+" : "-", T1("{s}s", "s", s));
   P.skOn = 1; /* the pill stays put while it is up: only its number changes */ P.seekTxtUntil = 0; P.seekCommitAt = n + 1.2;
 }
-static void commit_seek(void) { if (P.seekT < 0) return; double t = P.seekT; P.seekT = -1; video_seek(t); P.seekTxtUntil = now_() + 0.9; }
+static void seek_to(double t) {
+  if (t < 0) t = 0;
+  if (P.dts.conv == 2) {
+    /* A new converter generation invalidates every old segment URL and its queued reads. */
+    int flags = (mkv_has_index(mkv) == 0 ? HC_NOINDEX : 0) | (P.dts.dv ? HC_DV81 : 0) | (P.dts.copyA ? HC_COPYAUDIO : 0);
+    P.dts.pauseAfterSeek = paused(); P.dts.convAt = t; P.dts.convT0 = now_(); P.dts.okAt = 0;
+    video_unload(); P.live = 0; P.liveT0 = 0; P.didResume = 0; P.startAt = t > 0 ? t : -1; P.dts.conv = 1;
+    hls_conv_start(P.url, P.dts.convOrd, flags);
+    fprintf(stderr, "[seek] fresh converter and media session at %.3f s\n", t);
+    return;
+  }
+  video_seek(t);
+}
+static void commit_seek(void) { if (P.seekT < 0) return; double t = P.seekT; P.seekT = -1; seek_to(t); P.seekTxtUntil = now_() + 0.9; }
 static void cancel_seek(void) { P.seekT = -1; P.skm = 0; P.skOn = 0; P.seekTxtUntil = 0; }
 
 /* ---- picture size, three states always in this order: Original (the whole picture), Fill (fills the screen: a file
@@ -1387,6 +1404,7 @@ void player_key(int k, int down) {
   if (P.failed && P.canNext && k == K_OK) { try_next(); return; }
   if (!P.started || !P.live || P.failed) { if (k == K_BACK || k == K_EXIT) close_player(0, 0); return; } /* the art is up (resolving): only Back does anything */
   P.hvOn = 0;
+  if (k == K_PLAY && P.dts.pauseAfterSeek) { P.dts.pauseAfterSeek = 0; video_play(); }
   if (P.mode == 4 && (k == K_PLAY || k == K_PAUSE || k == K_PLAYPAUSE)) { if (k == K_PLAYPAUSE || (k == K_PLAY) == paused()) toggle(); return; } /* the card stays: the controls don't come */
   if (k == K_PLAY) { if (paused()) video_play(); show_osd(1); return; }
   if (k == K_PAUSE) { if (!paused()) { video_pause(); save_progress(1); } show_osd(1); return; }
@@ -1635,7 +1653,7 @@ void player_play_at(const Stream *s, const char *type, const char *id, const cha
 void player_cast(int cmd, double pos) {
   if (!P.open || P.closing) return;
   if (cmd == 1 && !paused()) { video_pause(); save_progress(1); } else if (cmd == 2 && paused()) video_play();
-  else if (cmd == 3 && P.live) video_seek(pos < 0 ? 0 : pos); else if (cmd == 4) close_player(0, 0);
+  else if (cmd == 3 && P.live) seek_to(pos); else if (cmd == 4) close_player(0, 0);
 }
 /* the subtitles and audio as the trays list them, for a phone: ids it hands back as they are ("off", "emb:<track>",
    "ext1:<n>" the stream's and OpenSubtitles', "ext2:<n>" the addons', audio "<track>" or "conv:<n>" a converted one) */
@@ -1840,7 +1858,7 @@ void player_tick(float dt) {
   if (P.resolving) { const char *st = p2p_status(); if (strcmp(st, status)) set_status(st); return; } /* the art: nothing for a few seconds, then why it is slow ("Finding peers…", "Getting the file list…") */
   VidState vs = video_state();
   if (P.started && now_() - P.posTick >= 1.0) { P.posTick = now_(); double t = video_time(), b = video_buffered_end(); if (t > 0) P.lastPos = t;
-    if (mkv) mkv_set_pos(mkv, t, b > t ? b - t : -1);
+    if (mkv && P.live) mkv_set_pos(mkv, t, b > t ? b - t : -1);
     dts_tick();
     if (!P.isTrailer && (!P.embKnown || !P.mkvTracksOk || mkv_state(mkv) == MKV_FALLBACK)) load_emb_tracks(); /* until the file's list settles (the TV's own list may come late) */
     if (P.isP2p) { p2p_pace(vs == VID_PLAYING, vs == VID_BUFFERING || vs == VID_LOADING, dur()); char ln[160]; int has = p2p_peer_line(ln, sizeof ln); snprintf(P.p2pLine, sizeof P.p2pLine, "%s", has ? ln : "");
@@ -1851,6 +1869,7 @@ void player_tick(float dt) {
     if (n >= 0) { P.chapWant = 0; PlayerChapter pc[64]; for (int i = 0; i < n; i++) { snprintf(pc[i].name, sizeof pc[i].name, "%s", mc[i].name); pc[i].s = mc[i].s; pc[i].e = mc[i].e < 0 ? dur() : mc[i].e; } player_chapters(P.url, pc, n); } }
   if (P.dts.conv == 2 && !P.failed && (vs == VID_ERROR || (!video_live() && now_() - P.dts.convT0 > 25))) { dts_conv_failed(vs == VID_ERROR ? video_error() : "no picture after 25 s"); return; }
   if (P.dts.deferUntil) dts_defer_tick();
+  if (P.dts.pauseAfterSeek && P.live && !video_settling()) { P.dts.pauseAfterSeek = 0; video_pause(); }
   if (vs == VID_ERROR && !P.failed && P.started && P.isP2p && !P.p2pRetried && p2p_moved_recently()) { /* the torrent's storage moved (a USB drive pulled out): the same stream once more, same moment */
     P.p2pRetried = 1; P.startAt = P.lastPos > 0 ? P.lastPos : 0; P.didResume = 0; P.live = 0; fprintf(stderr, "[player] stream error after the torrent storage moved: again at %.0f s\n", P.startAt); video_load(P.url); vs = video_state(); }
   if (vs == VID_ERROR && !P.failed && P.started) { if (P.alt[0] && !P.altTried) { P.altTried = 1; fprintf(stderr, "[player] error, the fallback URL\n"); video_load(P.alt); } else { if (!P.errAt) P.errAt = now_(); if (!P.sizeTok || P.sizeAns || now_() - P.errAt > 4) fail(fail_reason()); } } /* the first URL failed: the same file the other way; the reason waits for the server's answer (4 s at most) */
@@ -2401,6 +2420,7 @@ static void ptr_tray(float x, float y, int down) {
     if (down) choose(it); return; }
 }
 void player_ptr(int type, float x, float y) {
+  if (type == 3) { P.barDown = 0; return; } /* cancel a lost press without committing its seek or another action */
   if (!P.open || P.closing || !P.live) return; /* the art is up (resolving): nothing to point at */
   float L25 = text_line_height(25), barTop = SB_H - 54 - 94 - 30 - L25; /* the bar's row, its times included (the track alone is a few pixels high) */
   int onBar = y >= barTop && y <= barTop + L25, onBtns = y >= SB_H - 54 - 94 && y <= SB_H - 54;
@@ -2435,9 +2455,9 @@ int player_nerd_lines(char (*out)[120], int max) {
   if (n < max) { VidTrack a[16]; int na = video_audio_tracks(a, 16); const VidTrack *c = P.curAud >= 0 && P.curAud < na ? &a[P.curAud] : NULL; char ch[16] = "";
     if (c && c->channels > 0) snprintf(ch, sizeof ch, " · %d ch", c->channels);
     snprintf(out[n++], 120, "audio  %s%s%s", c && c->codec[0] ? c->codec : "not reported yet", ch, P.dts.conv ? " · converted to AC3 here" : ""); }
-  if (n < max) snprintf(out[n++], 120, "buffer  %.0f s ahead  ·  %s", buf > 0 ? buf : 0, P.isP2p ? "torrent" : P.isHls ? "HLS" : "direct");
+  if (n < max) snprintf(out[n++], 120, "buffer  %.0f s ahead  ·  %s", buf > 0 ? buf : 0, P.dts.conv ? "local conversion" : P.isP2p ? "torrent" : P.isHls ? "HLS" : "direct");
   if (n < max && P.isP2p) { char pl[96]; if (p2p_peer_line(pl, sizeof pl)) snprintf(out[n++], 120, "p2p  %s", pl); }
-  if (n < max) { double am = asssubs_render_ms(); if (asssubs_on()) snprintf(out[n++], 120, "subtitles  styled, %.0f ms a render", am); else if (P.curSub[0]) snprintf(out[n++], 120, "subtitles  plain"); }
+  if (n < max) { double am = asssubs_render_ms(); if (!strcmp(P.curSub, "off")) snprintf(out[n++], 120, "subtitles  off"); else if (asssubs_on()) snprintf(out[n++], 120, "subtitles  styled, %.0f ms a render", am); else if (P.curSub[0]) snprintf(out[n++], 120, "subtitles  plain"); }
   return n;
 }
 

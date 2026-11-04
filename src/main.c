@@ -282,6 +282,9 @@ int main(int argc, char **argv) {
       else if (e.type == SDL_MOUSEWHEEL) app_pointer_wheel((float)e.wheel.x, (float)e.wheel.y);
       else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) { SDL_GL_GetDrawableSize(win, &dw, &dh); gfx_resize(dw, dh); }
     }
+#ifdef SB_WEBOS
+    { int life = plat_lifecycle(NULL); if (life) app_pointer_focus(life > 0); }
+#endif
     Uint32 now = SDL_GetTicks(); float dt = (now - last) / 1000.0f; last = now;
     { float pp = (float)pace_period() / 1000.0f; if (pp <= 0) pp = 1 / 60.0f; /* motion on the 60 Hz clock: an on-time frame is one period (no millisecond jitter); a slow one moves it 3 periods at most (no jump) */
       if (dt > pp * 0.5f && dt < pp * 1.5f) dt = pp; else if (dt > pp * 3) dt = pp * 3; }

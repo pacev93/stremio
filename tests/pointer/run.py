@@ -30,11 +30,13 @@ Scr SCR = SCR_HOME;
 static double NOW;
 TopNav topNav = { .want = -1 };
 static int playing = 1;
-static int pointed, okDowns, okUps, navDowns;
+static int pointed, canceled, okDowns, okUps, navDowns;
+static struct { int down; } okHold;
+static int okDown, menuGuard;
 static int saver_on(void) { return 0; }
 static void saver_stop(void) {}
 static int player_open(void) { return playing; }
-void player_ptr(int type, float x, float y) { (void)type; (void)x; (void)y; pointed++; }
+void player_ptr(int type, float x, float y) { (void)x; (void)y; if (type == 3) canceled++; else pointed++; }
 static void idle_touch(void) {}
 static void idle_touch_by(const char *why) { (void)why; }
 int app_mirror_key(int k) { return k; }
@@ -158,9 +160,56 @@ int main(void) {
   app_pointer_wheel(0,1); assert(is_shown());
   NOW = 73.1; ptr_frame(); assert(!is_shown());
   app_pointer_focus(0); assert(is_shown()); enabled();
-  SDL_DestroyWindow(win); SDL_Quit();
   puts("PASS menu idle and exit restore original pointer image");
-  puts("13 real-SDL pointer scenarios passed; LG TV verification still required");
+
+  app_pointer_focus(1); playing=1; NOW=80; app_pointer_wheel(0,1);
+  NOW=81; app_pointer_button(1,400,100); assert(PTR.down==2);
+  okHold.down=okDown=menuGuard=1; int cancels=canceled;
+  NOW=82; app_key(K_LEFT,1,0);
+  assert(!PTR.down && !PTR.eatOk && !PTR.eatUp && canceled==cancels+1);
+  assert(!okHold.down && !okDown && !menuGuard && !is_shown());
+  NOW=83; app_pointer_wheel(0,1); NOW=86; ptr_frame(); assert(!is_shown());
+  int oks=okDowns; NOW=87; app_key(K_OK,1,0); app_key(K_OK,0,0); assert(okDowns==oks+1);
+  puts("PASS lost mouse-up is canceled by arrow navigation without action, and idle/OK recover");
+
+  NOW=90; app_pointer_wheel(0,1); app_pointer_button(1,400,100); cancels=canceled;
+  NOW=91; app_pointer_button(1,400,100); assert(canceled==cancels+1 && PTR.down==2);
+  app_pointer_button(0,400,100); assert(!PTR.down);
+  puts("PASS a new physical press recovers an earlier lost release");
+
+  NOW=94; ptr_frame(); assert(!is_shown());
+  SDL_RaiseWindow(win); SDL_SetWindowInputFocus(win); SDL_PumpEvents();
+  assert(SDL_GetKeyboardFocus()==win);
+  focus(0); assert(PTR.suspended && is_shown());
+  int life=plat_lifecycle(NULL); assert(life==1); app_pointer_focus(1);
+  assert(!PTR.suspended && !is_shown());
+  puts("PASS confirmed SDL keyboard focus repairs a missing foreground window event");
+
+  SDL_Event bg; memset(&bg,0,sizeof bg); bg.type=SDL_APP_DIDENTERBACKGROUND;
+  life=plat_lifecycle(&bg); assert(life==-1); app_pointer_focus(0);
+  assert(plat_lifecycle(NULL)==0 && is_shown());
+  bg.type=SDL_WINDOWEVENT; bg.window.event=SDL_WINDOWEVENT_SHOWN;
+  assert(plat_lifecycle(&bg)==0 && plat_lifecycle(NULL)==0 && is_shown());
+  bg.type=SDL_APP_DIDENTERFOREGROUND;
+  life=plat_lifecycle(&bg); assert(life==1); app_pointer_focus(1);
+  assert(!PTR.suspended && !is_shown());
+  puts("PASS an explicit app-background state cannot be undone by stale window focus/show");
+
+  NOW=100; app_pointer_wheel(0,1); focus(0); focus(1); assert(is_shown() && PTR.on);
+  NOW=103; ptr_frame(); assert(!is_shown());
+  puts("PASS returning with an active cursor still arms idle hiding without another motion event");
+
+  NOW=110; oks=okDowns; int ups=okUps;
+  app_key(K_OK,1,0); okHold.down=okDown=1;
+  app_pointer_system(0); assert(okHold.down && okDown);
+  app_pointer_button(1,400,100); app_key(K_OK,0,0); app_pointer_button(0,400,100);
+  assert(okDowns==oks+1 && okUps==ups+1 && !PTR.down);
+  okHold.down=okDown=0;
+  puts("PASS a system hide between keyboard and mouse events preserves one complete OK press");
+
+  app_pointer_focus(0);
+  SDL_DestroyWindow(win); SDL_Quit();
+  puts("19 real-SDL pointer scenarios passed; LG TV verification still required");
   return 0;
 }
 '''
@@ -174,7 +223,7 @@ FAILURE_PREFIX = r'''
 typedef unsigned char Uint8;
 typedef struct { int id; } SDL_Cursor;
 static SDL_Cursor original={1}, alternate={2}, blank={3};
-static SDL_Cursor *current=&original;
+static SDL_Cursor *current=&original, *nativeImage=&original;
 static int mode, created, changed;
 static SDL_Cursor *get(void) { return current; }
 static SDL_Cursor *def(void) { return mode==3 ? NULL : &original; }
@@ -183,7 +232,7 @@ static SDL_Cursor *create(const Uint8 *data, const Uint8 *mask, int w, int h, in
   for (int i=0;i<8;i++) assert(data[i]==0 && mask[i]==0);
   created++; return mode==1 ? NULL : &blank;
 }
-static void set(SDL_Cursor *cursor) { assert(cursor); current=cursor; changed++; }
+static void set(SDL_Cursor *cursor) { assert(cursor); nativeImage=current=cursor; changed++; }
 void *dlsym(void *handle, const char *name) {
   (void)handle;
   if (!strcmp(name,"SDL_GetCursor")) return mode==2 ? NULL : (void *)get;
@@ -206,7 +255,7 @@ int main(int argc, char **argv) {
     assert(current==before && changed==0 && created<=1);
   } else {
     assert(current==&blank && created==1);
-    plat_pointer_image(0); assert(created==1);
+    nativeImage=&original; plat_pointer_image(0); assert(created==1 && nativeImage==&blank);
     plat_pointer_image(1); assert(current==&original);
     current=&alternate; plat_pointer_image(0); plat_pointer_image(1);
     assert(current==&alternate && created==1);
@@ -231,7 +280,7 @@ def main():
     assert 'app_pointer_focus(life > 0)' in main_source and 'app_pointer_focus(0)' in main_source
     with tempfile.TemporaryDirectory(prefix='stremio-pointer-') as folder:
         tmp = pathlib.Path(folder); c = tmp / 'pointer.c'; binary = tmp / 'pointer'
-        c.write_text(PREFIX + body + function(native, 'plat_lifecycle') + source[start:end] + TESTS)
+        c.write_text(PREFIX + body + function(native, 'plat_lifecycle') + function(source, 'key_cancel_press') + source[start:end] + TESTS)
         subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-D_GNU_SOURCE', '-DSB_WEBOS',
                         '-O1', '-g', '-Wall', '-Wextra', '-Wno-unused-function',
                         '-Wno-misleading-indentation', *sdl_include(tmp, args.sdl_include),
@@ -245,7 +294,7 @@ def main():
                         '-Werror=implicit-function-declaration',str(failures),'-o',str(failbin)],check=True)
         for mode in range(8):
             subprocess.run([str(failbin),str(mode)],check=True)
-        print('21 cursor scenarios passed: 13 real-SDL, 8 controlled backend/failure cases')
+        print('27 cursor scenarios passed: 19 real-SDL, 8 controlled backend/failure cases')
 
 
 if __name__ == '__main__':

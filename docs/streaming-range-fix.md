@@ -1,6 +1,40 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.7
+## Aktueller Stand: 1.0.8
+
+1.0.8 setzt die ausgewählten Änderungen um: Cursor und Seek stabilisieren,
+unbenötigte Textuntertitel-Abrufe unterlassen. Die native Pufferautomatik,
+funktionierende DTS-Auswahl, mitgelieferte App-Konfiguration und alle
+Originalbibliotheken bleiben erhalten. Es gibt keinen zusätzlichen Proxy.
+
+- Ein verlorenes Pointer-Loslassen wird beim Navigationswechsel oder einer
+  neuen Betätigung abgebrochen, ohne die alte Aktion auszulösen. Fehlende
+  Fenster-Fokus-Rückkehr wird nur bei bestätigtem SDL-Tastaturfokus repariert;
+  ein expliziter App-Hintergrundzustand bleibt geschützt. Das transparente
+  Bild wird nach nativen Bild-Resets erneut gesetzt. Rad-Aktivierung und
+  Idle nach Rückkehr bleiben erhalten; native Hide-Meldungen verschlucken
+  keinen unabhängigen OK-Tastendruck.
+- Ein Benutzersprung im Konverterpfad erzeugt eine neue Konvertergeneration
+  und Mediensitzung. Alte URLs und wartende Anfragen werden ungültig bzw.
+  beendet. Direktwiedergabe lädt beim Rückwärtssprung die Mediensitzung neu.
+  Zielposition, Tonspur, Untertitelwahl und Pause-Zustand werden erhalten.
+  Dieser Weg kann beim Spulen eine zusätzliche Ladepause verursachen.
+- Der MKV-Worker liest weiterhin Header, Audio-/DV-Daten und Kapitel.
+  Untertitelindex und Dialogdaten werden erst bei einer angeforderten
+  Textspur gelesen. Es wird nur diese Spur im vorhandenen Zeitfenster
+  bedient, kein ganzer Track und kein Vorrat aller Sprachen. Off/externe
+  Untertitel erzeugen keine fortlaufenden eingebetteten Textabrufe.
+  Auto-sync darf während seiner Referenzsuche gezielt eine Textspur
+  anfordern und gibt sie beim Ende/Abbruch wieder frei.
+- Die Statistik benennt den lokalen Konverterweg und zeigt ausgeschaltete
+  Untertitel als `off`. Der Sekundenwert bleibt eine native Meldung und ist
+  keine direkte Messung aller Pufferspeicher.
+
+Die Korrekturen sind lokal geprüft, nicht auf der geschlossenen CX-Pipeline.
+Ein vollständiges Ausbleiben weiterer Unterbrechungen oder Video-Hänger
+ist damit noch nicht am TV nachgewiesen.
+
+## Bisherige Korrekturen und Puffer-Rücknahme in 1.0.7
 
 Version 1.0.7 entfernt die Puffer-Auswahl, die zusätzlichen nativen
 Pufferparameter und den dazugehörigen Rückfall aus 1.0.6 nach der Rückmeldung
@@ -9,9 +43,9 @@ Pufferparameter und den dazugehörigen Rückfall aus 1.0.6 nach der Rückmeldung
 HTTP-Range-Fix, DTS-Korrekturen aus 1.0.4, native Play-Zuordnung aus 1.0.5
 und Cursor-Aktivierung ausschließlich per Scrollrad aus 1.0.6 bleiben erhalten.
 Der Nutzer bestätigt, dass die gewünschte DTS-zu-Dolby-Konvertierung mit 1.0.4
-funktioniert. `src/screens/player.c` und die Konverterbibliothek bleiben
-gegenüber 1.0.4 unverändert. Weitere Streaming-Ansätze werden zunächst
-vorgestellt und erst nach Auswahl des Nutzers implementiert.
+funktioniert. Diese Auswahlregeln und die Konverterbibliothek bleiben
+erhalten; 1.0.8 ergänzt den beschriebenen Seek-Neustart und bedarfsgerechte
+Untertitelabrufe. Andere Streaming-Ansätze bleiben Vorschläge.
 Ausgangspunkt bleibt das Original 1.0.0, Commit
 `051818e55cf38caed42d597fbcb05bdd3fc5bbd9`. Der übrige Funktionsumfang und die
 Originalressourcen bleiben erhalten. Es gibt keinen zusätzlichen Read-Ahead-Proxy.
@@ -28,7 +62,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.7 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.8 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -60,10 +94,12 @@ ein beim Fokuswechsel gehaltener Klick wird zurückgesetzt. Falls SDL kein
 wiederherstellbares Originalbild oder keinen transparenten Cursor bereitstellt,
 bleibt der vorhandene Zeiger unverändert.
 
-13 Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
+19 Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
 Bildwechsel, Scrollrad-Aktivierung, ignorierte kleine und große Bewegungen, wiederholte
 Show-Meldungen, Klicks im Tastenmodus in beiden Ereignisreihenfolgen,
-Fokuswechsel, gehaltene Klicks und Beenden. Acht zusätzliche Backend-Fälle prüfen fehlende Funktionen,
+Fokuswechsel, gehaltene/verlorene Klicks, Rückkehr mit unverändertem Bild,
+nativen Hide zwischen OK-/Maus-Ereignissen und Beenden.
+Acht zusätzliche Backend-Fälle prüfen fehlende Funktionen,
 fehlendes Originalbild, fehlgeschlagene Erstellung und die Wiederherstellung
 eines benutzerdefinierten Bilds. Das ist kein Nachweis für den geschlossenen
 LG-Compositor; die Darstellung und das Wiederauftauchen auf dem CX bleiben
@@ -98,7 +134,11 @@ kleine serielle Range-Abrufe. Das ist kein Ursachennachweis für diesen CX.
 Einzelheiten des zurückgenommenen Versuchs und des Nuvio-Vergleichs stehen in
 Commit `c6f88c7`; diese Profile werden nicht weiter empfohlen.
 
-## Weitere Ansätze zur Auswahl – noch nicht umgesetzt
+## Weitere Ansätze und getroffene Auswahl
+
+Die bedarfsgerechten Textabrufe der zweiten Option sind mit 1.0.8 umgesetzt.
+Hash-Abrufe, Range-Größen, Ausgabecontainer und Decoderzufuhr werden dabei
+nicht umgebaut. Die übrigen Optionen bleiben unimplementiert.
 
 | Ansatz | Erwarteter Nutzen | Risiken und Grenzen | Aufwand |
 | --- | --- | --- | --- |
@@ -107,7 +147,7 @@ Commit `c6f88c7`; diese Profile werden nicht weiter empfohlen.
 | Vorhandenen HLS-Pfad als Remux-Modus mit Audio-/Video-Kopie nutzen | Anderer Container und Zulieferpfad können direkten MKV-HTTP-Engpass umgehen | HDR/DV, Spuren und Seeking prüfen; hilft nicht zwangsläufig beim bereits HLS-konvertierten DTS-Fall | Mittel |
 | Eigener Fetch-/Demux-Pfad mit direkter nativer Decoder-Zulieferung | Potenzial für echte Byte-Budgets und kontrollierte HTTP-Anfragen ohne zusätzlichen Proxy | Großer Eingriff; RAM/CPU, Synchronität, HDR/DV, Seeking und CX-API-Kompatibilität neu abzusichern | Hoch |
 
-Codebasis der zweiten Option: `src/core/mkvsubs.c:pick` fordert Daten für
+Codebasis vor 1.0.8: `src/core/mkvsubs.c:pick` forderte Daten für alle
 Textspuren im Zeitfenster bis 90 s voraus an. Im indexierten Pfad fehlt die
 Pufferprüfung des nicht dringenden Scanners; dieser prüft bereits eine
 15-s-Reserve. `src/core/subs.c:subs_os_hash` kann zudem Dateianfang und -ende
@@ -124,7 +164,7 @@ vorgeschlagen. Native Puffersteuerung bliebe bei der Originalautomatik.
 Empfehlung: zuerst einen kurzen Messlauf, danach gegebenenfalls die gezielte
 Priorisierung eigener Zusatzabrufe. Ein HLS-Remux ist eine weitere Option,
 falls die direkte MKV-Zulieferung als Engpass bestätigt wird. Für alle
-weiteren Änderungen ist zunächst die Auswahl des Nutzers abzuwarten.
+weiteren Streaming-Umbauten ist weiterhin die Auswahl des Nutzers abzuwarten.
 
 ## DTS: warum „Umwandeln“ später wirkungslos erscheinen konnte
 
@@ -213,7 +253,7 @@ der öffentliche Quellstand ist daher keine Bestätigung ihres exakten Inhalts.
 | Pufferoptionen | Keine explizite `bufferControl`-Vorgabe im untersuchten `WebOsVideo` | `userBufferCtrl:false` und `useSeekableRanges:true` |
 | MKV-Zusatzdaten | Plattformspuren, optional `/tracks` des gebündelten Servers | Eigener Worker für Header, Kapitel, Cues und Untertitelblöcke; ohne Index Scanning |
 | Datei-Hash | Direkter `withVideoParams`-Wrapper übernimmt Addon-Angaben | Untertitelabfrage kann erste und letzte 64 KiB lesen |
-| Nicht unterstützter Ton | Plattform-/Server-abhängig | Eigener Konverter über 512-KiB-/2-MiB-Ranges, Ausgabe als lokales HLS |
+| Nicht unterstützter Ton | Plattform-/Server-abhängig | Eigener Konverter über 512-KiB-/2-MiB-Ranges, Ausgabe als lokales HLS oder indexloses MPEG-TS |
 
 Offizielle Quellen:
 [WebOsVideo](https://github.com/Stremio/stremio-video/blob/fa1f32674159a0c0e2903cba44d4d41cd461e19f/src/WebOsVideo/WebOsVideo.js),
@@ -260,18 +300,24 @@ python3 tests/net/run.py --sdl-include "$SDK/usr/include"
 DISPLAY=:97 python3 tests/pointer/run.py --sdl-include "$SDK/usr/include"
 python3 tests/audio/run.py
 python3 tests/remote/run.py --sdl-include "$SDK/usr/include"
+python3 tests/seek/run.py --sdl-include "$SDK/usr/include"
+python3 tests/mkv/run.py --sdl-include "$SDK/usr/include"
 python3 tools/scrub_ipk.py candidate.ipk --reference original-1.0.0.ipk
 python3 tests/package/check.py original-1.0.0.ipk candidate.ipk
 ```
 
 Die zwölf Transportfälle umfassen feste und Chunked-Antworten, Wiederverwendung,
 Redirects, Dateiende, ignorierte/falsche Ranges, unterbrochene/überlange
-Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 21 Cursor-, 14 Audio-
-und vier Medien-Tasten-Fälle. Die zehn Tests des entfernten Puffer-Experiments
-bleiben in der Git-Historie. Für 1.0.7 wurden der ARM-Build, Audio- und
-Tastentests sowie die endgültige Paketprüfung ausgeführt. Der vollständige
-Quellvergleich belegt die Wiederherstellung der nativen Videosteuerung und
-den Erhalt der übrigen Korrekturen. Der Cursor-Test benötigt echte SDL2 sowie eine
+Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 27 Cursor-, 14 Audio-,
+fünf Medien-Tasten-, 16 Seek- und neun MKV-Worker-Fälle. Die zehn Tests des
+entfernten Puffer-Experiments bleiben in der Git-Historie. Die Seek-Tests
+prüfen echte Handler mit kontrollierten Serviceantworten sowie den Abbruch
+einer wartenden HLS-Anfrage mit echten Threads. Die MKV-Tests verwenden
+einen seekbaren Matroska-Datensatz und zählen die echten Range-Aufrufe des
+Workers für beide Indexpfade; Audio/DV/Kapitel und Sprachwechsel werden geprüft.
+Die native Pufferkonfiguration bleibt unverändert, obwohl der native
+Video-Quellcode jetzt die Seek-Absicherung enthält.
+Der Cursor-Test benötigt echte SDL2 sowie eine
 lokale X-Anzeige (hier `:97`, gegebenenfalls mit `XAUTHORITY`); er verwendet
 keinen abgeschalteten Zeiger. Das ausgelieferte Programm wird auf das Fehlen
 der beiden verworfenen Cursor-API-Namen geprüft. Die Paketprüfung liest die
