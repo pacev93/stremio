@@ -25,8 +25,8 @@ const char *plat_device_name(void);
 int plat_mem_total_mb(void);
 void plat_thread_background(int nice);  /* the calling thread yields to the drawing thread (and threads it starts inherit it) */
 /* an SDL event as the app's life sees it: 1 = back in front (a relaunch, a return from another app),
-   -1 = sent to the back, 0 = neither. webOS also accepts NULL to reconcile native foreground state and
-   lost window-focus notifications; app-directed navigation can recover a missing return event. */
+   -1 = sent to the back, 0 = neither. webOS also accepts NULL to reconcile lost SDL window-focus notifications.
+   Input addressed to the app window can recover a missing return event, without a system-service query. */
 int plat_lifecycle(const SDL_Event *e);
 /* the TV's own UI language ("fr-FR"), asked once; NULL when the platform does not say */
 const char *plat_ui_locale(void);

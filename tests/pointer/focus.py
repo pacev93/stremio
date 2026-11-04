@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Exercise production webOS foreground reconciliation with controlled SDL/Luna input.
+"""Exercise production webOS focus recovery with app-directed SDL input.
 
-These fixtures model system panels and stale/missing notifications; they do not
-emulate the LG compositor or assert its actual service-response shape.
+These fixtures model missing return events and input addressed to the app window.
+Service stubs ensure no foreground-service request can gate pointer input.
+The actual LG compositor is not emulated.
 """
 import argparse
 import os
@@ -49,16 +50,9 @@ void plat_luna_cancel(unsigned long t) { assert(t);cancels++; }
 '''
 
 TESTS = r'''
-static const char *own="{\"foregroundAppInfo\":[{\"appId\":\"tv.stremioorigin.app\",\"displayId\":0}]}";
-static const char *settings="{\"foregroundAppInfo\":[{\"appId\":\"com.webos.app.settings\",\"displayId\":0}]}";
-static const char *denied="{\"returnValue\":false,\"errorText\":\"Denied\"}";
 static void background(void) {
   SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_APP_DIDENTERBACKGROUND;
   assert(plat_lifecycle(&e)==-1 && pointerFocus.away && pointerFocus.background);
-}
-static int snapshot(const char *json) {
-  if (!pointerFocus.request) { pointerFocus.nextAt=0;assert(plat_lifecycle(NULL)==0); }
-  assert(pointerFocus.request && reply);reply(json,replyData);return plat_lifecycle(NULL);
 }
 static SDL_Event navigation(Uint32 window) {
   SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_KEYDOWN;e.key.windowID=window;
@@ -67,84 +61,101 @@ static SDL_Event navigation(Uint32 window) {
 static SDL_Event wheel(Uint32 window) {
   SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_MOUSEWHEEL;e.wheel.windowID=window;e.wheel.y=1;return e;
 }
+static SDL_Event click(Uint32 window) {
+  SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_MOUSEBUTTONDOWN;e.button.windowID=window;e.button.button=SDL_BUTTON_LEFT;return e;
+}
+static SDL_Event motion(Uint32 window) {
+  SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_MOUSEMOTION;e.motion.windowID=window;e.motion.x=400;return e;
+}
+static SDL_Event window_event(Uint32 window,Uint8 kind) {
+  SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_WINDOWEVENT;e.window.windowID=window;e.window.event=kind;return e;
+}
 int main(int argc,char **argv) {
-  assert(argc==2);setenv("APPID","tv.stremioorigin.app",1);background();
-  if (!strcmp(argv[1],"native-return")) {
-    assert(snapshot(settings)==0);assert(snapshot(own)==1);
-    assert(!pointerFocus.away && !pointerFocus.background);
-  } else if (!strcmp(argv[1],"panel-open")) {
-    keyboard=NULL;assert(snapshot(settings)==0);
-    SDL_Event e=wheel(1);assert(plat_lifecycle(&e)==0 && pointerFocus.away);
-  } else if (!strcmp(argv[1],"home-stale-sdl")) {
-    assert(snapshot("{\"foregroundAppInfo\":[{\"appId\":\"com.webos.app.home\"}]}")==0);
-    assert(keyboard==pointerWindow && plat_lifecycle(NULL)==0 && pointerFocus.away);
-  } else if (!strcmp(argv[1],"mixed-overlay")) {
-    assert(snapshot("{\"foregroundAppInfo\":[{\"appId\":\"tv.stremioorigin.app\"},{\"appId\":\"com.webos.app.settings\"}]}")==0);
-    SDL_Event e=wheel(1);assert(plat_lifecycle(&e)==0 && !pointerFocus.ownForeground);
-  } else if (!strcmp(argv[1],"navigation-return")) {
-    keyboard=NULL;SDL_Event e=navigation(1);assert(plat_lifecycle(&e)==1);
-    assert(!pointerFocus.background && !pointerFocus.away);
-  } else if (!strcmp(argv[1],"unavailable")) {
-    keyboard=NULL;assert(snapshot(denied)==0 && pointerFocus.source==1);
-    assert(snapshot(denied)==0 && pointerFocus.away);
-    SDL_Event e=navigation(1);assert(plat_lifecycle(&e)==1);
-  } else if (!strcmp(argv[1],"stale-reply")) {
-    pointerFocus.nextAt=0;assert(plat_lifecycle(NULL)==0);unsigned epoch=pointerFocus.epoch;
-    background();assert(pointerFocus.epoch!=epoch);reply(own,replyData);
-    assert(plat_lifecycle(NULL)==0 && pointerFocus.away);
-  } else if (!strcmp(argv[1],"obsolete-ticket")) {
-    assert(snapshot(settings)==0);void *old=replyData;
-    pointerFocus.nextAt=0;plat_lifecycle(NULL);assert(pointerFocus.request);
-    pointer_foreground_reply(own,old);assert(!pointerFocus.done);
-    reply(own,replyData);assert(plat_lifecycle(NULL)==1);
-  } else if (!strcmp(argv[1],"wheel-proof")) {
-    keyboard=NULL;SDL_Event e=wheel(1);assert(plat_lifecycle(&e)==0);
-    assert(snapshot(own)==0 && pointerFocus.ownForeground && pointerFocus.away);
-    SDL_Event bad=wheel(2);assert(plat_lifecycle(&bad)==0);
+  assert(argc==2);setenv("APPID","tv.stremioorigin.app",1);
+  if (!strcmp(argv[1],"request-free-loop")) {
+    for(int i=0;i<10000;i++) { ticks+=20;assert(plat_lifecycle(NULL)==0); }
+    assert(!pointerFocus.away && !requests);
+  } else if (!strcmp(argv[1],"wheel-return")) {
+    background();keyboard=mouse=NULL;SDL_Event e=wheel(1);
+    assert(plat_lifecycle(&e)==1 && !pointerFocus.away && !pointerFocus.background);
+    assert(plat_lifecycle(&e)==0);
+  } else if (!strcmp(argv[1],"click-return")) {
+    background();keyboard=mouse=NULL;SDL_Event e=click(1);
     assert(plat_lifecycle(&e)==1 && !pointerFocus.away);
-  } else if (!strcmp(argv[1],"hidden-window")) {
-    windowFlags=SDL_WINDOW_HIDDEN;assert(snapshot(own)==0);
-    SDL_Event e=navigation(1);assert(plat_lifecycle(&e)==0 && pointerFocus.away);
+  } else if (!strcmp(argv[1],"motion-return")) {
+    background();keyboard=NULL;mouse=pointerWindow;SDL_Event e=motion(1);
+    assert(plat_lifecycle(&e)==1 && !pointerFocus.background);
+  } else if (!strcmp(argv[1],"navigation-return")) {
+    background();keyboard=NULL;SDL_Event e=navigation(1);assert(plat_lifecycle(&e)==1);
+  } else if (!strcmp(argv[1],"legacy-navigation")) {
+    background();keyboard=NULL;SDL_Event e=navigation(0);assert(plat_lifecycle(&e)==1);
+  } else if (!strcmp(argv[1],"panel-open")) {
+    background();assert(plat_lifecycle(NULL)==0 && pointerFocus.away);
+    SDL_Event e=window_event(1,SDL_WINDOWEVENT_SHOWN);assert(plat_lifecycle(&e)==0);
+    e.window.event=SDL_WINDOWEVENT_RESTORED;assert(plat_lifecycle(&e)==0);
+    e=navigation(1);e.key.keysym.sym=0;e.key.keysym.scancode=SDL_WEBOS_SCANCODE_CURSOR_SHOW;
+    assert(plat_lifecycle(&e)==0 && pointerFocus.away);
   } else if (!strcmp(argv[1],"foreign-input")) {
-    keyboard=NULL;SDL_Event e=navigation(2);assert(plat_lifecycle(&e)==0);
+    background();keyboard=mouse=NULL;
+    SDL_Event events[]={navigation(2),wheel(2),click(2),motion(2),window_event(2,SDL_WINDOWEVENT_FOCUS_GAINED)};
+    for(unsigned i=0;i<sizeof events/sizeof events[0];i++) assert(plat_lifecycle(&events[i])==0);
+    assert(pointerFocus.away);
+  } else if (!strcmp(argv[1],"unaddressed-pointer")) {
+    background();mouse=pointerWindow;
+    SDL_Event events[]={wheel(0),click(0),motion(0)};
+    for(unsigned i=0;i<sizeof events/sizeof events[0];i++) assert(plat_lifecycle(&events[i])==0);
+    assert(pointerFocus.away);
+  } else if (!strcmp(argv[1],"hidden-window")) {
+    background();windowFlags=SDL_WINDOW_HIDDEN;
+    SDL_Event events[]={wheel(1),click(1),navigation(1)};
+    for(unsigned i=0;i<sizeof events/sizeof events[0];i++) assert(plat_lifecycle(&events[i])==0);
+    SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_APP_DIDENTERFOREGROUND;
+    assert(plat_lifecycle(&e)==0 && pointerFocus.away);
+    windowFlags=SDL_WINDOW_SHOWN;e=window_event(1,SDL_WINDOWEVENT_SHOWN);
+    assert(plat_lifecycle(&e)==1 && !pointerFocus.away);
+  } else if (!strcmp(argv[1],"orphan-release")) {
+    background();SDL_Event e=click(1);e.type=SDL_MOUSEBUTTONUP;assert(plat_lifecycle(&e)==0);
+    e=click(1);e.button.button=SDL_BUTTON_RIGHT;assert(plat_lifecycle(&e)==0);
     e=navigation(1);e.key.repeat=1;assert(plat_lifecycle(&e)==0);
     e.key.repeat=0;e.type=SDL_KEYUP;assert(plat_lifecycle(&e)==0);
-    e.type=SDL_KEYDOWN;e.key.keysym.sym=0;e.key.keysym.scancode=SDL_WEBOS_SCANCODE_CURSOR_SHOW;
-    assert(plat_lifecycle(&e)==0 && pointerFocus.away);
-  } else if (!strcmp(argv[1],"malformed")) {
-    keyboard=NULL;assert(snapshot("invalid JSON")==0 && pointerFocus.away);
-    assert(snapshot("{\"returnValue\":true}")==0 && pointerFocus.away);
-  } else if (!strcmp(argv[1],"fallback-card")) {
-    pointerFocus.source=1;keyboard=NULL;
-    assert(snapshot("{\"returnValue\":true,\"appId\":\"tv.stremioorigin.app\"}")==0);
-    keyboard=pointerWindow;
-    assert(snapshot("{\"returnValue\":true,\"appId\":\"tv.stremioorigin.app\"}")==1);
-  } else if (!strcmp(argv[1],"timeout")) {
-    keyboard=NULL;pointerFocus.nextAt=0;plat_lifecycle(NULL);assert(requests==1);
-    ticks+=2001;assert(plat_lifecycle(NULL)==0 && requests==2 && pointerFocus.source==1);
-    ticks+=2001;assert(plat_lifecycle(NULL)==0 && !pointerFocus.request && pointerFocus.away);
-    for(int i=0;i<100;i++)plat_lifecycle(NULL);assert(requests==2 && cancels==2);
+    e=navigation(1);e.key.keysym.sym=0;e.key.keysym.scancode=450;assert(plat_lifecycle(&e)==0);
+    e=wheel(1);e.wheel.x=e.wheel.y=0;assert(plat_lifecycle(&e)==0 && pointerFocus.away);
+  } else if (!strcmp(argv[1],"enter-return")) {
+    background();keyboard=NULL;mouse=pointerWindow;
+    SDL_Event e=window_event(1,SDL_WINDOWEVENT_ENTER);assert(plat_lifecycle(&e)==1);
+  } else if (!strcmp(argv[1],"enter-without-focus")) {
+    background();keyboard=mouse=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_ENTER);
+    assert(plat_lifecycle(&e)==0);e=motion(1);assert(plat_lifecycle(&e)==0 && pointerFocus.away);
+  } else if (!strcmp(argv[1],"soft-missing-return")) {
+    keyboard=NULL;SDL_Event e=window_event(1,SDL_WINDOWEVENT_FOCUS_LOST);assert(plat_lifecycle(&e)==-1);
+    assert(plat_lifecycle(NULL)==0);keyboard=pointerWindow;assert(plat_lifecycle(NULL)==1);
+  } else if (!strcmp(argv[1],"foreground-return")) {
+    background();SDL_Event e;memset(&e,0,sizeof e);e.type=SDL_APP_DIDENTERFOREGROUND;
+    assert(plat_lifecycle(&e)==1);assert(plat_lifecycle(&e)==0);
+    background();e=window_event(1,SDL_WINDOWEVENT_FOCUS_GAINED);assert(plat_lifecycle(&e)==1);
   } else if (!strcmp(argv[1],"repeated-panels")) {
+    keyboard=mouse=NULL;
     for(int i=0;i<2000;i++) {
-      if(i)background();assert(snapshot(settings)==0);assert(snapshot(own)==1);
+      background();assert(plat_lifecycle(NULL)==0);
+      SDL_Event e=i%2?wheel(1):click(1);assert(plat_lifecycle(&e)==1);
       assert(!pointerFocus.away && !pointerFocus.background);ticks+=20;
     }
-  } else if (!strcmp(argv[1],"display-filter")) {
-    assert(snapshot("{\"foregroundAppInfo\":[{\"appId\":\"other.app\",\"displayId\":1},{\"appId\":\"tv.stremioorigin.app\",\"displayId\":0}]}")==1);
   } else assert(!"unknown case");
-  printf("PASS foreground reconciliation %s\n",argv[1]);return 0;
+  assert(!requests && !cancels);
+  printf("PASS input-based focus recovery %s\n",argv[1]);return 0;
 }
 '''
 
-CASES = ('native-return','panel-open','home-stale-sdl','mixed-overlay',
-         'navigation-return','unavailable','stale-reply','obsolete-ticket',
-         'wheel-proof','hidden-window','foreign-input','malformed',
-         'fallback-card','timeout','repeated-panels','display-filter')
+CASES = ('request-free-loop','wheel-return','click-return','motion-return',
+         'navigation-return','legacy-navigation','panel-open','foreign-input',
+         'unaddressed-pointer','hidden-window','orphan-release','enter-return',
+         'enter-without-focus','soft-missing-return','foreground-return','repeated-panels')
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sdl-include',type=Path)
+    parser.add_argument('--case',choices=CASES)
     args=parser.parse_args()
     native=(ROOT/'src/platform/webos/plat_webos.c').read_text()
     start=native.index('/* ---- foreground state:')
@@ -156,14 +167,15 @@ def main():
                         '-Wno-switch','-Wno-misleading-indentation',*sdl_include(tmp,args.sdl_include),
                         '-I',str(ROOT/'src'),'-I',str(ROOT/'third_party/cjson'),str(c),
                         str(ROOT/'third_party/cjson/cJSON.c'),'-lm','-o',str(exe)],check=True)
-        for case in CASES:
+        selected=(args.case,) if args.case else CASES
+        for case in selected:
             result=subprocess.run([str(exe),case],timeout=10,
                                   stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
             if result.returncode:
                 sys.stderr.write(result.stdout+result.stderr)
                 result.check_returncode()
-            print('PASS foreground reconciliation '+case)
-        print(f'{len(CASES)} foreground-state scenarios passed; LG event/API behavior is not emulated')
+            print('PASS input-based focus recovery '+case)
+        print(f'{len(selected)} focus-recovery scenarios passed; LG compositor is not emulated')
 
 
 if __name__=='__main__':

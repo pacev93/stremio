@@ -22,7 +22,6 @@ PREFIX = r'''
 #include "core/hit.h"
 #include "platform/plat.h"
 #include <SDL2/SDL_webOS.h>
-#include "cJSON.h"
 #include <assert.h>
 #include <dlfcn.h>
 #include <math.h>
@@ -31,13 +30,11 @@ PREFIX = r'''
 #include <stdlib.h>
 #include <stdint.h>
 static SDL_Window *pointerWindow;
-static PlatLunaCb foregroundReply;
-static void *foregroundData;
-static unsigned long foregroundToken;
 unsigned long plat_luna_subscribe(const char *uri, const char *payload, PlatLunaCb cb, void *ud) {
-  (void)uri; (void)payload; foregroundReply=cb; foregroundData=ud; return ++foregroundToken;
+  (void)uri; (void)payload; (void)cb; (void)ud;
+  assert(!"Cursor lifecycle must not query a foreground service"); return 0;
 }
-void plat_luna_cancel(unsigned long token) { (void)token; }
+void plat_luna_cancel(unsigned long token) { (void)token; assert(!"Cursor lifecycle must not use Luna handles"); }
 Scr SCR = SCR_HOME;
 static double NOW;
 TopNav topNav = { .want = -1 };
@@ -71,6 +68,14 @@ static void focus(int active) {
   SDL_Event ev; memset(&ev, 0, sizeof ev); ev.type = SDL_WINDOWEVENT;
   ev.window.event = active ? SDL_WINDOWEVENT_FOCUS_GAINED : SDL_WINDOWEVENT_FOCUS_LOST;
   int life = plat_lifecycle(&ev); if (life) app_pointer_focus(life > 0);
+}
+/* Production ordering: repair lifecycle first, then deliver the same input without dropping its action. */
+static void pointer_event(SDL_Event *ev) {
+  int life=plat_lifecycle(ev); if(life) app_pointer_focus(life>0);
+  if(ev->type==SDL_MOUSEWHEEL) app_pointer_wheel(ev->wheel.x,ev->wheel.y);
+  else if(ev->type==SDL_MOUSEMOTION) app_pointer_move(ev->motion.x,ev->motion.y);
+  else if(ev->type==SDL_MOUSEBUTTONDOWN || ev->type==SDL_MOUSEBUTTONUP)
+    app_pointer_button(ev->type==SDL_MOUSEBUTTONDOWN,ev->button.x,ev->button.y);
 }
 int main(void) {
   assert(SDL_Init(SDL_INIT_VIDEO) == 0);
@@ -222,23 +227,43 @@ int main(void) {
 
   memset(&pointerFocus,0,sizeof pointerFocus);
   SDL_Event panel; memset(&panel,0,sizeof panel); panel.type=SDL_APP_DIDENTERBACKGROUND;
-  life=plat_lifecycle(&panel); assert(life==-1); app_pointer_focus(0);
-  plat_lifecycle(NULL); assert(pointerFocus.request && foregroundReply);
-  foregroundReply("{\"foregroundAppInfo\":[{\"appId\":\"com.webos.app.settings\",\"displayId\":0}]}",foregroundData);
-  assert(plat_lifecycle(NULL)==0 && PTR.suspended && is_shown());
-  pointerFocus.nextAt=0; plat_lifecycle(NULL);
-  foregroundReply("{\"foregroundAppInfo\":[{\"appId\":\"tv.stremioorigin.app\",\"displayId\":0}]}",foregroundData);
-  life=plat_lifecycle(NULL); assert(life==1); app_pointer_focus(1);
-  assert(!PTR.suspended && !is_shown());
-  NOW=120; app_pointer_wheel(0,1); before=pointed;
-  app_pointer_button(1,400,100); app_pointer_button(0,400,100);
+  pointer_event(&panel); assert(PTR.suspended && is_shown());
+  for(int i=0;i<1000;i++) assert(plat_lifecycle(NULL)==0);
+  SDL_Event wheel;memset(&wheel,0,sizeof wheel);wheel.type=SDL_MOUSEWHEEL;
+  wheel.wheel.windowID=SDL_GetWindowID(win);wheel.wheel.y=1;
+  NOW=120;pointer_event(&wheel);assert(!PTR.suspended && is_shown());
+  SDL_Event move;memset(&move,0,sizeof move);move.type=SDL_MOUSEMOTION;
+  move.motion.windowID=SDL_GetWindowID(win);move.motion.x=410;move.motion.y=100;
+  before=pointed;pointer_event(&move);ptr_frame();assert(pointed==before+1);
+  SDL_Event button;memset(&button,0,sizeof button);button.type=SDL_MOUSEBUTTONDOWN;
+  button.button.windowID=SDL_GetWindowID(win);button.button.button=SDL_BUTTON_LEFT;
+  button.button.x=410;button.button.y=100;before=pointed;
+  pointer_event(&button);button.type=SDL_MOUSEBUTTONUP;pointer_event(&button);
   assert(is_shown() && pointed==before+2);
   NOW=123; ptr_frame(); assert(!is_shown());
-  puts("PASS native foreground proof repairs a system-panel return, including click routing and idle");
+  puts("PASS wheel input repairs a missing app return without a service query; motion, clicks and idle work");
+
+  NOW=124;pointer_event(&wheel);pointer_event(&panel);assert(PTR.suspended && is_shown());
+  NOW=125;before=pointed;button.type=SDL_MOUSEBUTTONDOWN;pointer_event(&button);
+  assert(!PTR.suspended && PTR.down==2 && pointed==before+1);
+  assert(plat_lifecycle(&button)==0 && PTR.down==2); /* no second focus reset may cancel this press */
+  button.type=SDL_MOUSEBUTTONUP;pointer_event(&button);assert(pointed==before+2 && !PTR.down);
+  NOW=128;ptr_frame();assert(!is_shown());
+  puts("PASS an addressed click repairs a missing return and delivers that same press/release exactly once");
+
+  for(int i=0;i<100;i++) {
+    NOW=140+i*10;pointer_event(&panel);assert(PTR.suspended && is_shown());
+    pointer_event(&wheel);assert(!PTR.suspended && PTR.on && is_shown());
+    move.motion.x=400+i%2;pointer_event(&move);ptr_frame();before=pointed;
+    button.type=SDL_MOUSEBUTTONDOWN;pointer_event(&button);
+    button.type=SDL_MOUSEBUTTONUP;pointer_event(&button);assert(pointed==before+2);
+    NOW+=3;ptr_frame();assert(!is_shown());
+  }
+  puts("PASS 100 missing-return cycles retain wheel wake, real SDL images, click actions and idle hiding");
 
   app_pointer_focus(0);
   SDL_DestroyWindow(win); SDL_Quit();
-  puts("20 real-SDL pointer scenarios passed; LG TV verification still required");
+  puts("22 real-SDL pointer scenarios passed; LG TV verification still required");
   return 0;
 }
 '''
@@ -316,7 +341,7 @@ def main():
                         '-O1', '-g', '-Wall', '-Wextra', '-Wno-unused-function',
                         '-Wno-misleading-indentation', *sdl_include(tmp, args.sdl_include),
                         '-I', str(ROOT / 'src'), '-I', str(ROOT / 'third_party/cjson'),
-                        str(c), str(ROOT/'third_party/cjson/cJSON.c'), '-Wl,--export-dynamic', '-l:libSDL2-2.0.so.0', '-ldl', '-lm',
+                        str(c), '-Wl,--export-dynamic', '-l:libSDL2-2.0.so.0', '-ldl', '-lm',
                         '-o', str(binary)], check=True)
         subprocess.run([str(binary)], check=True, env={**os.environ, 'SDL_VIDEODRIVER': 'x11'})
         failures=tmp/'failures.c';failbin=tmp/'failures'
@@ -325,7 +350,7 @@ def main():
                         '-Werror=implicit-function-declaration',str(failures),'-o',str(failbin)],check=True)
         for mode in range(8):
             subprocess.run([str(failbin),str(mode)],check=True)
-        print('28 cursor scenarios passed: 20 real-SDL, 8 controlled backend/failure cases')
+        print('30 cursor scenarios passed: 22 real-SDL, 8 controlled backend/failure cases')
 
 
 if __name__ == '__main__':

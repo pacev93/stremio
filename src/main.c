@@ -262,9 +262,6 @@ int main(int argc, char **argv) {
 #endif
   while (!app_quitting()) {
     SDL_Event e; Uint32 tEv0 = SDL_GetTicks();
-#ifdef SB_WEBOS
-    { int life = plat_lifecycle(NULL); if (life) app_pointer_focus(life > 0); }
-#endif
     while (SDL_PollEvent(&e)) {
 #ifdef SB_WEBOS
       int life = plat_lifecycle(&e); if (life) app_pointer_focus(life > 0);

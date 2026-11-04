@@ -1,19 +1,22 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.9
+## Aktueller Stand: 1.0.10
 
-1.0.9 korrigiert die Rückkehr aus LG-Systemmenüs und nimmt den erzwungenen
-Stream-Neustart beim normalen Spulen aus 1.0.8 zurück. Die bedarfsgerechten
+1.0.10 entfernt die Vordergrund-Serviceabfrage aus 1.0.9 nach der Rückmeldung,
+dass der Cursor damit dauerhaft sichtbar und unbedienbar bleibt. Die Rückkehr
+wird anhand von SDL-Fokusereignissen und Eingaben für das eigene Fenster
+erkannt. Der erzwungene Stream-Neustart aus 1.0.8 bleibt zurückgenommen. Die bedarfsgerechten
 Textuntertitel-Abrufe aus 1.0.8 bleiben erhalten. Die native Pufferautomatik,
 funktionierende DTS-Auswahl, mitgelieferte App-Konfiguration und alle
 Originalbibliotheken bleiben erhalten. Es gibt keinen zusätzlichen Proxy.
 
 - Ein verlorenes Pointer-Loslassen wird beim Navigationswechsel oder einer
   neuen Betätigung abgebrochen, ohne die alte Aktion auszulösen. Fehlende
-  Fenster-Fokus-Rückkehr wird zusätzlich über den nativen Vordergrundstatus
-  und tatsächliche Pfeil-/OK-Eingaben für das App-Fenster repariert. Dies gilt
-  auch für einen hängen gebliebenen App-Hintergrundzustand. Bewegung und
-  Cursor-Show-Meldungen gelten nicht als Rückkehrnachweis. Das transparente
+  Fenster-Fokus-Rückkehr wird über Eingaben für das eigene SDL-Fenster
+  repariert: Scrollrad, linker Tastendruck, Pfeile/OK oder bestätigter
+  Mausfokus. Dies gilt auch für einen hängen gebliebenen App-Hintergrundzustand.
+  Serviceantworten können keine Pointer-Sperre mehr setzen. Bewegung hebt die
+  Rad-Sperre nicht auf; Cursor-Show-Meldungen bleiben ohne Rückkehrwirkung. Das transparente
   Bild wird nach nativen Bild-Resets erneut gesetzt. Rad-Aktivierung und
   Idle nach Rückkehr bleiben erhalten; native Hide-Meldungen verschlucken
   keinen unabhängigen OK-Tastendruck.
@@ -68,7 +71,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.9 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.10 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -106,28 +109,38 @@ zu einem veralteten Hintergrundzustand: Die Pointer-Handler bleiben gesperrt,
 das ursprüngliche Cursorbild sichtbar, Tasteneingaben laufen jedoch weiter.
 Ein TV-Ereignisprotokoll zum Nachweis liegt nicht vor.
 
-1.0.9 fragt den Vordergrundstatus über `getForegroundAppInfo` ab. Antworten
-werden asynchron verarbeitet, zeitlich begrenzt und bei Fehlern zurückgestellt.
-Ein eindeutiger App-Status plus SDL-Eingabefokus kann die Sperre lösen; gemischte
-Listen mit einem Systempanel gelten nicht als Bestätigung. Kommen Pfeile oder
-OK tatsächlich für das sichtbare App-Fenster an, lösen sie die veraltete Sperre
-auch ohne Servicezugriff. Eine Radbewegung benötigt bei veraltetem SDL-Fokus
-zusätzlich einen aktuellen nativen App-Nachweis. Alte Antworten vor einem
-neueren Fokuswechsel werden verworfen. Bloße Bewegung oder Show-Meldungen
-können den Hintergrundschutz nicht aufheben.
+1.0.9 ergänzte `getForegroundAppInfo`. Das war für diesen nativen Client kein
+hinreichend bestätigter Sichtbarkeitsnachweis. Im Code kann eine leere bzw.
+fremde App-Meldung selbst ohne SDL-Fokusverlust die gesamte Pointer-Bedienung
+sperren. Ein danach korrekt an das Fenster gerichtetes Scrollrad-Ereignis
+wurde ohne positiven Dienstnachweis weiter verworfen. Die neuen Tests
+reproduzieren diese Blockade mit dem 1.0.9-Code. Die tatsächliche
+Serviceantwort des CX ist weiterhin nicht aufgezeichnet.
 
-20 Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
+1.0.10 entfernt die Abfrage, ihre Handles, Zeitgeber und Zustandsantworten
+vollständig. Eine echte Radbewegung oder ein linker Tastendruck für die
+passende SDL-Fenster-ID repariert einen fehlenden Rückkehrhinweis direkt vor
+der Verarbeitung derselben Eingabe. Es geht keine zusätzliche erste
+Betätigung verloren. Mausbewegung bzw. Window-Enter können dies nur bei
+passender Fenster-ID und SDL-Mausfokus. Sie lösen die Rad-Sperre nicht.
+Unadressierte Hintergrund-Zeigerereignisse, fremde Fenster, bloße
+Cursor-Show-Meldungen und verwaiste Loslassen-Ereignisse lösen keine Rückkehr
+aus. Fenster-Hidden/Minimized bleibt geschützt. Die Prüfung verlässt sich
+nicht mehr auf den Namen des nativen Clients in einem Systemdienst.
+
+22 Abläufe mit echter Desktop-SDL und einer lokalen X-Anzeige prüfen
 Bildwechsel, Scrollrad-Aktivierung, ignorierte kleine und große Bewegungen, wiederholte
 Show-Meldungen, Klicks im Tastenmodus in beiden Ereignisreihenfolgen,
 Fokuswechsel, gehaltene/verlorene Klicks, Rückkehr mit unverändertem Bild,
 nativen Hide zwischen OK-/Maus-Ereignissen und Beenden.
 Acht zusätzliche Backend-Fälle prüfen fehlende Funktionen,
 fehlendes Originalbild, fehlgeschlagene Erstellung und die Wiederherstellung
-eines benutzerdefinierten Bilds. 16 weitere Fälle prüfen die neue
-Vordergrund-Abstimmung mit kontrollierten Serviceantworten, darunter 2000
-Menüwechsel, fehlende/alte Meldungen, Home, überlagerte Panels und verweigerten
-Servicezugriff. Die Serviceformen sind am öffentlichen webOS-OSE-Code
-orientiert; die konkrete Antwort und Ereignisfolge des CX sind nicht erfasst.
+eines benutzerdefinierten Bilds. 16 weitere Fälle prüfen Eingaben und fehlende
+Rückkehrereignisse mit kontrolliertem SDL-Zustand, darunter 2000 Menüwechsel,
+fremde Fenster und verwaiste Releases. Ein Test verlangt, dass über 10000
+Poll-Schritte keine Vordergrund-Dienstanfrage mehr erfolgt. Mit echter
+Desktop-SDL werden zusätzlich 100 Wiederholungen aus Rad-Aktivierung, Klick
+und Ausblenden nach fehlender Rückkehrmeldung geprüft.
 Das ist kein Nachweis für den geschlossenen
 LG-Compositor; die Darstellung und das Wiederauftauchen auf dem CX bleiben
 am TV zu prüfen.
@@ -336,9 +349,11 @@ python3 tests/package/check.py original-1.0.0.ipk candidate.ipk
 
 Die zwölf Transportfälle umfassen feste und Chunked-Antworten, Wiederverwendung,
 Redirects, Dateiende, ignorierte/falsche Ranges, unterbrochene/überlange
-Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 28 Cursor-, 16
-Vordergrund-, 14 Audio-, vier Medien-Tasten-, 18 Seek- und neun MKV-Worker-Fälle.
-Insgesamt sind dies 101 Szenarien. Die zehn Tests des
+Antworten sowie HTTP-Fehler und Timeouts. Hinzu kommen 30 Cursor-, 16
+Fokus-Rückkehr-, 14 Audio-, vier Medien-Tasten-, 18 Seek- und neun MKV-Worker-Fälle.
+Insgesamt sind dies 103 Szenarien. Für 1.0.10 wurden die 46 Cursor-/Fokusfälle
+erneut ausgeführt; der zu 1.0.9 geprüfte Wiedergabe-/Audio-/Transport-Code
+bleibt unverändert. Die zehn Tests des
 entfernten Puffer-Experiments bleiben in der Git-Historie. Die Seek-Tests
 prüfen native Sitzungswiederverwendung bei kleinen und wiederholten Sprüngen,
 die erhaltene Pause im notwendigen TS-Sonderpfad sowie den Abbruch
