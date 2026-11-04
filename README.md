@@ -1,24 +1,26 @@
-# Update 1.0.12
+# Update 1.0.13
 
 Bestehende Homebrew-Adresse:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
 Origin vollständig schließen und als Update installieren. Keine Deinstallation.
 
-Die zusätzliche Cursor-Leave-Sperre aus 1.0.11 ist zurückgenommen, nachdem
-auch normales Ausblenden und Wiederaktivieren ohne LG-Menü ausfiel.
-Zugestellte Mausbewegungen, linke Tastendrücke und Radereignisse lösen jetzt
-eine veraltete Hintergrundsperre auch bei Fenster-ID 0 oder veralteten
-SDL-Fokus-/Sichtbarkeitsangaben. Explizit fremde Fenster bleiben ausgeschlossen.
-Bewegung allein aktiviert den ausgeblendeten Zeiger weiterhin nicht;
-die Rad-Aktivierung und der vorhandene Klick-/Idle-Pfad bleiben erhalten.
+Nach expliziter App-/Fenster-Deaktivierung fordert Origin bei bestätigter Rückkehr
+oder echter App-Navigation einmal die native Fensteraktivierung an. Der Aufruf
+ist gegen Fokusereignis-Schleifen gesichert. Cursor-Show, Leave, bloßes Shown und
+gepollter Tastaturfokus lösen keine Aktivierung aus. Das Cursorbild wird nach
+Wiederherstellung der gewünschten Darstellung bei tatsächlichem App-Mausfokus
+einmal ausdrücklich neu gezeichnet. Rad-Aktivierung bleibt erhalten.
 
-Funktionales Update ohne Diagnoseanzeige. Keine Vordergrund-Serviceabfrage
-und keine globalen Cursor-Schalter. Wiedergabe, DTS, Puffer und Spulen unverändert.
+Mögliche Größenänderungen der nativen Fläche werden für logische Mauskoordinaten,
+Drawable/Grafik sowie bestehende Video-/Crop-Rechtecke aktualisiert. Die
+Mediensitzung wird nicht neu geladen; DTS, Bufferautomatik und Seeking bleiben
+in ihrer bisherigen Form erhalten. Keine Diagnoseanzeige, keine globalen
+Cursor-Schalter, kein Vordergrund-Servicepolling.
 
-50 lokale Cursor-/Fokusprüfungen, ARM-Build und Paketprüfung bestanden.
-Alle 330 Original-Dateirechte, Ressourcen, Bibliotheken und mitgelieferte
-App-Konfiguration bleiben erhalten. Das Cursorverhalten auf dem CX ist
-weiterhin am TV zu bestätigen.
+80 lokale Szenarien bestanden: 32 Cursor-, 24 Fokus-, sechs Geometrie- und
+18 Seek-Prüfungen. ARM-Build und finaler Paketvergleich erfolgreich; alle 330
+Original-Dateirechte, Ressourcen, Bibliotheken und App-Konfiguration erhalten.
+Die konkrete CX-System-SDL und das Compositorverhalten bleiben am TV zu prüfen.
 
-Details: https://github.com/pacev93/stremio/tree/f3e0da29b439e489f6dee29e0d2c99fa7e5c67d9/docs/streaming-range-fix.md
+Details: https://github.com/pacev93/stremio/tree/4d263298c960d5879e0dd0783176525356a9e04c/docs/streaming-range-fix.md

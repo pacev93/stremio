@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "f3e0da29b439e489f6dee29e0d2c99fa7e5c67d9",
+  "sourceCommit": "4d263298c960d5879e0dd0783176525356a9e04c",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "a186e20f91d1f5b430837713efba33b775a43401a221bcba084fb1faf81b997e",
+  "ipkSha256": "f6881e259b28e72cf96883612f6f81a8f86889df447dae7546ca06aee75cd88f",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
@@ -12,10 +12,10 @@
   "productionSourceChanges": [
     "src/core/net.c: HTTP 206 keep-alive correction retained",
     "src/core/app.c and app.h: wheel-only cursor; cancel lost presses and reassert hidden image; active return still idles",
-    "src/main.c: lifecycle reconciliation before delivering each SDL event; remove foreground-query pre-poll; native media-key diagnostics retained",
+    "src/main.c: refresh logical input and drawable/video geometry on SIZE_CHANGED; existing lifecycle dispatch retained",
     "src/platform/plat.h and mac/plat_mac.c: existing image interface; document SDL input-based return recovery",
-    "src/platform/webos/plat_webos.c: withdraw leave suspension; recover on delivered pointer input including zero window ID and stale visibility/focus; no foreground-service query",
-    "src/platform/webos/video_webos.c: native forward/backward seeks retained from 1.0.9; pause/track preservation in necessary indexless TS reopen; original buffer payload",
+    "src/platform/webos/plat_webos.c: one-shot SDL_RaiseWindow after confirmed return; loop guard; deferred SDL_SetCursor(NULL) redraw with own mouse focus; preserve raw pointer recovery",
+    "src/platform/webos/video_webos.c: reapply existing video/crop rectangles when drawable dimensions change; no media reload; original native buffer payload",
     "src/core/hproxy.c: stopped queued converter requests cannot execute",
     "src/core/mkvsubs.c and mkvsubs.h: subtitle harvesting only on demand",
     "src/screens/player.c: no converter restarts on seeks; temporary sync reference and accurate route/off labels; DTS selection retained"
@@ -23,11 +23,11 @@
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.12",
+  "version": "1.0.13",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
-  "cursorStrategy": "Withdraw 1.0.11 leave suspension; delivered mouse movement, wheel and left-button presses recover stale background state without requiring window ID or cached visibility/mouse focus; wheel-only wake retained",
+  "cursorStrategy": "Separate one-shot native activation latch after explicit deactivation and confirmed foreground/navigation; consume before Raise; focus churn cannot retry until wheel/button interaction; force NULL redraw only with app mouse focus; preserve wheel-only wake",
   "tvFeedback": {
     "1.0.2": {
       "streaming": "User reports buffering appears resolved",
@@ -68,6 +68,10 @@
     "after-1.0.11": {
       "cursor": "Also fails after a fresh start without LG quick settings: revived pointer remains visible and cannot operate app",
       "authorization": "User explicitly requests functional bug fixing and rejects diagnostic build/UI"
+    },
+    "after-1.0.12": {
+      "cursor": "Normal wheel/arrow operation works; LG settings open/close leaves visible nonfunctional cursor even without video, while keys work",
+      "authorization": "User approves one-shot native activation plus cursor redraw after read-only source analysis; no diagnostic UI"
     }
   },
   "playKeyStatus": "Native private LG SDL scancode 450 mapped to Play; separate Pause and normalised toggle retained; CX event capture pending",
@@ -85,7 +89,7 @@
     "userBufferCtrl": false,
     "overrideRemoved": true,
     "oldSavedOverrideIgnored": true,
-    "nativeVideoSource": "native seeking restored; bufferControl load payload matches upstream 1.0.0"
+    "nativeVideoSource": "Geometry rebind on drawable resize; native buffer payload unchanged from upstream 1.0.0"
   },
   "restoredOriginalFiles": [
     "src/screens/settings.c",
@@ -94,32 +98,35 @@
   "releaseChecks": {
     "armBuild": "passed",
     "cursor": "32 passed",
-    "foreground": "18 passed",
-    "regressionBeforeFix": "1.0.11 treats ordinary pointer leave as suspension; 1.0.10/11 reject zero-ID or stale-hidden pointer recovery",
+    "foreground": "24 passed",
+    "regressionBeforeFix": "Prior app state/image resets never requested native window activation; size changes did not refresh logical input coordinates or existing plane rectangles",
     "audio": "14 passed in 1.0.9; source unchanged",
     "mediaKeys": "4 passed in 1.0.9; source unchanged",
-    "seek": "18 passed in 1.0.9; source unchanged",
+    "seek": "18 passed",
     "mkvWorker": "9 passed in 1.0.9; source unchanged",
     "transport": "12 passed in 1.0.9; source unchanged",
-    "package": "330 original entry modes and unchanged resources verified"
+    "package": "330 original entry modes and unchanged resources verified",
+    "geometry": "6 passed"
   },
   "furtherStreamingOptions": "On-demand subtitle reads selected and implemented in 1.0.8; other streaming changes remain proposals",
-  "binarySha256": "45b4fe43bd921a8a30da71cb8363e694d4dbdef904090cb79eb3d9fc878df500",
+  "binarySha256": "1d818b871a34fc31b037b5a017233a581809d00af6049bccb4c984755cfe84ef",
   "seekScenariosPassed": 18,
   "mkvWorkerScenariosPassed": 9,
-  "totalRegressionScenariosPassed": 107,
+  "totalRegressionScenariosPassed": 119,
   "tvSeekValidated": false,
   "seekStrategy": "Native seek within the existing direct/HLS session; 350 ms debounce retained; reopen only the existing indexless continuous-TS path with pause/track preservation; no unconditional converter restart",
   "subtitleStrategy": "Metadata/chapters retained; defer subtitle index; only requested text track near playhead; one temporary Auto-sync reference; stop off retries",
-  "foregroundScenariosPassed": 18,
-  "foregroundValidationScope": "18 controlled focus cases and 32 image/input/backend cases, including ordinary cursor leave and 100 zero-ID system-return cycles; actual CX events not observed",
-  "scenariosRunForThisRelease": 50,
-  "playbackSourceUnchangedFromVersion": "1.0.11",
+  "foregroundScenariosPassed": 24,
+  "foregroundValidationScope": "24 controlled focus cases, 32 cursor image/input/backend cases, 6 geometry and 18 seek cases; actual CX SDL/compositor events not observed",
+  "scenariosRunForThisRelease": 80,
   "withdrawnForegroundPollingVersion": "1.0.9",
   "discardedCursorApproaches": [
     "Global cursor visibility/input switches from early releases",
     "Foreground-service polling from 1.0.9",
     "Treating visible cursor or keyboard focus alone as proof of pointer ownership",
     "1.0.11 pointer leave/enter ownership state machine after regression in ordinary hide/wake"
-  ]
+  ],
+  "geometryScenariosPassed": 6,
+  "nativeActivationReference": "https://github.com/webosbrew/SDL-webOS/blob/8f8da641e197c97a48c46c065e9a69941657bc29/src/video/wayland/SDL_waylandwindow.c#L1617",
+  "playerSourceUnchangedFromVersion": "1.0.12"
 }
