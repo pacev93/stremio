@@ -1,6 +1,45 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.14
+## Aktueller Stand: 1.0.15
+
+Der bestehende Konverter-Dateileser vergrößert seine fortlaufenden HTTP-Ranges
+von 2 auf 4 MiB. Öffnen und nicht im Rücklesepuffer liegende größere Sprünge
+beginnen weiterhin mit 512 KiB. Ein solcher Sprung setzt nun den Zähler für
+fortlaufendes Lesen vor der Größenentscheidung zurück. Der Ring enthält die
+letzten 8 statt 4 MiB, damit ein neuer Block nicht den gesamten Rücklesevorrat
+verdrängt. Ring plus eingehende Range belegen bis zu 12 statt 6 MiB Nutzdaten;
+Bibliotheks- und Decoder-Allokationen kommen weiterhin hinzu.
+
+Der Leser arbeitet wie bisher synchron bei einem Cache-Miss, ohne neuen
+Vorladethread oder zusätzlichen Proxy. Größere Abrufe können länger dauern;
+die moderate Verdopplung reduziert die Anfragen und damit wiederholte
+Range-Lesestrecken auf dem Server. Die 15-s-Anfragefrist bleibt unverändert.
+Kurze Vorwärtssprünge lesen bei Bedarf mehrere Antworten bis zur Zielposition,
+auch wenn eine Antwort vorzeitig endet. Sie scheitern nicht mehr nur deshalb,
+weil der erste Abruf die Position noch nicht erreicht. Bekannte Dateigrenzen
+begrenzen den letzten Abruf. Stop vor einem Cache-Treffer oder nach Rückkehr
+eines laufenden HTTP-Abrufs liefert keine alten Daten mehr aus; dies ist keine
+neue sofortige Abbruchmöglichkeit während einer laufenden curl-Anfrage.
+
+Die Änderung betrifft den eigenen DTS-/DV-Konverter-Eingang, sowohl direkt
+als auch über den bestehenden Header-Proxy. Native Direktwiedergabe läuft
+weiter über den LG-Mediendienst und erhält dadurch keine neue Blockgröße.
+Native Bufferautomatik, Cursor, Medientasten, DTS-Auswahl und die bestehende
+Seek-Sitzungslogik bleiben unverändert. Ein allgemeiner Buffering-Fix für
+native Direktstreams ist damit nicht nachgewiesen.
+
+Zwölf echte HTTP-Leserfälle prüfen fortlaufende Bytes, Header-Proxy, Rücksprung,
+Ringumlauf, kleine und große Sprünge, verkürzte Antworten, Dateiende, Stop vor/
+während einer Antwort und HTTP-Fehler/Wiederholungen. Ein zusätzlicher Vergleich
+mit dem unveränderten 1.0.14-Leser liest dieselben 32 MiB bytegenau: 19 zuvor,
+11 Anfragen danach, jeweils eine Serververbindung. Nach der Anlaufphase ist die
+Blockgröße verdoppelt; dieser lokale Vergleich misst keine TV-Abspielqualität.
+Zusätzlich bestanden zwölf bisherige Range-, 18 Seek- und 14 DTS-Policyfälle:
+56 ausgeführte Szenarien für 1.0.15. Insgesamt 159 mit den 103 unveränderten
+Prüfungen aus früheren Releases. ARM-Build erfolgreich; das finale IPK wurde
+mit den Originalressourcen, eingebetteten Schlüsseln und Rechten verglichen.
+
+## Änderungen in 1.0.14
 
 1.0.14 setzt die freigegebenen ersten drei Schritte des Streaming-Plans um.
 Der Wiedergabepfad wird an der tatsächlichen Header-Proxy-Übernahme festgemacht
@@ -204,7 +243,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.14 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.15 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -471,6 +510,7 @@ jedes Archiv-Eintrags aus dem Original übernommen. Die Paketprüfung verwirft
 source /workspace/stremio-env/activate.sh
 python3 tests/net/run.py --sdl-include "$SDK/usr/include"
 python3 tests/net/pipe.py --sdl-include "$SDK/usr/include"
+python3 tests/reader/run.py --sdl-include "$SDK/usr/include"
 python3 tests/subtitles/run.py
 DISPLAY=:97 python3 tests/pointer/run.py --sdl-include "$SDK/usr/include"
 python3 tests/pointer/focus.py --sdl-include "$SDK/usr/include"

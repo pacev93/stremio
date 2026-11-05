@@ -50,11 +50,13 @@ static void on_hdr(const char *line, void *ud) {
 static int on_body(const unsigned char *p, size_t n, void *ud) { Conn *c = ud; if (c->failed) return 0; if (!p) return 1; if (!c->sent) return 1; if (!send_all(c->fd, p, n)) { c->failed = 1; return 0; } return 1; }
 /* ---- a file's sound converted for the TV: a local HLS stream ----
    One conversion at a time (the film playing). Its reading goes through one kept-alive range connection with a ring of
-   the last 4 MiB read (the demuxer steps back a little now and then); the library itself is loaded on the first
+   the last 8 MiB read (the demuxer steps back a little now and then); the library itself is loaded on the first
    conversion only. The playlist is the file's keyframes grouped into segments; each segment is made when the TV asks
    for it, on that request's own thread, and written through as it is made. A request arriving while another runs
    stops it (the TV moved on), then takes its place. */
-#define RING (4 << 20)
+#define READ_INITIAL (512 << 10)
+#define READ_CONTIG (4 << 20)
+#define RING (2 * READ_CONTIG)
 static int start(void);
 typedef struct { char url[4096]; NetRange *net; long long size; unsigned char *ring; long long start; int len; volatile int *stop; int contig; } Reader;
 static int ring_put(Reader *r, long long at, const unsigned char *b, int n) { /* appends at = start + len */
@@ -62,15 +64,18 @@ static int ring_put(Reader *r, long long at, const unsigned char *b, int n) { /*
   r->len += n; if (r->len > RING) { r->start += r->len - RING; r->len = RING; } return n;
 }
 static int rd_read(void *ud, long long pos, unsigned char *buf, int n) {
-  Reader *r = ud; if (r->size > 0 && pos >= r->size) return 0;
-  if (!(pos >= r->start && pos < r->start + r->len)) {
+  Reader *r = ud; if (r->stop && *r->stop) return -1;
+  if (r->size > 0 && pos >= r->size) return 0;
+  while (!(pos >= r->start && pos < r->start + r->len)) {
     long long end = r->start + r->len, at = pos;
-    if (r->len && pos >= end && pos - end < (1 << 20)) at = end; else { r->start = pos; r->len = 0; } /* a short hop forward reads through */
-    int want = r->contig > 2 ? (2 << 20) : (512 << 10); /* reading on: larger requests; a seek's first look: a small one */
+    if (r->len && pos >= end && pos - end < (1 << 20)) at = end; else { r->start = pos; r->len = 0; r->contig = 0; } /* a short hop forward reads through */
+    int want = r->contig > 2 ? READ_CONTIG : READ_INITIAL; /* reading on: larger requests; a seek's first look: a small one */
+    if (r->size > 0 && r->size - at < want) want = (int)(r->size - at);
     for (int tries = 0;; tries++) {
       if (r->stop && *r->stop) return -1;
       unsigned char *b = NULL; long g = 0; long long total = -1; int st = 0;
       int e = net_range_get(r->net, r->url, at, want, &b, &g, &total, &st, 15000);
+      if (r->stop && *r->stop) { free(b); return -1; }
       if (total > 0) r->size = total;
       if (g > 0) { ring_put(r, at, b, (int)g); free(b); break; }
       free(b);
@@ -79,7 +84,8 @@ static int rd_read(void *ud, long long pos, unsigned char *buf, int n) {
       SDL_Delay(500u << tries);
     }
     r->contig = at == end ? r->contig + 1 : 0;
-    if (!(pos >= r->start && pos < r->start + r->len)) return -1;
+    if (r->size > 0 && pos >= r->size) return 0;
+    /* A short forward hop or truncated response can need another read to reach pos. */
   }
   int k = (int)(r->start + r->len - pos); if (k > n) k = n;
   for (int i = 0; i < k; ) { int o = (int)((pos + i) % RING), m = k - i < RING - o ? k - i : RING - o; memcpy(buf + i, r->ring + o, m); i += m; }
