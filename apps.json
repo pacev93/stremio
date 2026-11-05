@@ -12,20 +12,20 @@
       "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
       "pool": "main",
       "manifestUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/manifest.json",
-      "shortDescription": "1.0.13: Native Fensterreaktivierung und Cursor-Neuzeichnen nach App-Rückkehr.",
+      "shortDescription": "1.0.14: HTTP-Verbindungen wiederverwenden; ungenutzte Untertitel- und Hash-Abrufe vermeiden.",
       "fullDescriptionUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/full_description.html",
       "manifest": {
         "id": "tv.stremioorigin.app",
-        "version": "1.0.13",
+        "version": "1.0.14",
         "type": "native",
         "title": "Stremio Origin",
-        "appDescription": "1.0.13: Native Fensterreaktivierung nach bestätigter App-Rückkehr und echtes Cursor-Neuzeichnen. Einmalige Aktivierung mit Schleifenschutz; Größenwechsel bei Mauskoordinaten und Videofläche berücksichtigt. Aktivierung weiterhin per Scrollrad.",
+        "appDescription": "1.0.14: Serververbindungen im bestehenden Header-Proxy wiederverwenden; externe Untertitelsuchen und Hash-Abrufe bei ausgeschalteten Untertiteln auf Bedarf verschieben. Native Pufferautomatik bleibt erhalten.",
         "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-        "sourceUrl": "https://github.com/pacev93/stremio/tree/4d263298c960d5879e0dd0783176525356a9e04c",
+        "sourceUrl": "https://github.com/pacev93/stremio/tree/f43c152b7ce732fa34d08bb82b50d520bc81e8c6",
         "rootRequired": false,
-        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.13_arm.ipk",
+        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.14_arm.ipk",
         "ipkHash": {
-          "sha256": "f6881e259b28e72cf96883612f6f81a8f86889df447dae7546ca06aee75cd88f"
+          "sha256": "57f578dee55014bfd80337eb378a538b45951088364b09c1748b3eb2fc30c732"
         }
       }
     }

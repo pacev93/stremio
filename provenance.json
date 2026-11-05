@@ -1,16 +1,16 @@
 {
-  "sourceCommit": "4d263298c960d5879e0dd0783176525356a9e04c",
+  "sourceCommit": "f43c152b7ce732fa34d08bb82b50d520bc81e8c6",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "f6881e259b28e72cf96883612f6f81a8f86889df447dae7546ca06aee75cd88f",
+  "ipkSha256": "57f578dee55014bfd80337eb378a538b45951088364b09c1748b3eb2fc30c732",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
   ],
   "productionSourceChanges": [
-    "src/core/net.c: HTTP 206 keep-alive correction retained",
+    "src/core/net.c and net.h: existing complete-206 range fix retained; existing header proxy now reuses complete upstream responses in four exclusively leased curl sessions isolated by URL/non-Range headers; independent temporary overflow handles preserve seek concurrency; no body cache",
     "src/core/app.c and app.h: wheel-only cursor; cancel lost presses and reassert hidden image; active return still idles",
     "src/main.c: refresh logical input and drawable/video geometry on SIZE_CHANGED; existing lifecycle dispatch retained",
     "src/platform/plat.h and mac/plat_mac.c: existing image interface; document SDL input-based return recovery",
@@ -18,12 +18,14 @@
     "src/platform/webos/video_webos.c: reapply existing video/crop rectangles when drawable dimensions change; no media reload; original native buffer payload",
     "src/core/hproxy.c: stopped queued converter requests cannot execute",
     "src/core/mkvsubs.c and mkvsubs.h: subtitle harvesting only on demand",
-    "src/screens/player.c: no converter restarts on seeks; temporary sync reference and accurate route/off labels; DTS selection retained"
+    "src/screens/player.c and player.h: existing seek and DTS decisions retained; defer external subtitle discovery while Off, cancel stale results/retries on Off, retain cast lists for their video, and report actual header-proxy route in existing buffer statistics",
+    "src/core/subs.c: reuse known URL/size hashes for subsequent queries; supplied stream hash takes precedence; failed hash reads are not cached",
+    "src/core/cast.c and cast.h: distinguish explicit tracks? requests from automatic read-only state polling; wire messages unchanged"
   ],
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.13",
+  "version": "1.0.14",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
@@ -72,6 +74,11 @@
     "after-1.0.12": {
       "cursor": "Normal wheel/arrow operation works; LG settings open/close leaves visible nonfunctional cursor even without video, while keys work",
       "authorization": "User approves one-shot native activation plus cursor redraw after read-only source analysis; no diagnostic UI"
+    },
+    "after-1.0.13": {
+      "streaming": "User reports recurrent buffering even at lower bitrates and without Dolby Vision or DTS conversion; cannot reproduce with original Stremio client",
+      "subtitles": "User keeps subtitles off; background requests were not observable to the user",
+      "authorization": "User approves first three streaming-plan steps: identify actual route, reuse existing proxy connections, defer unnecessary subtitle/hash reads; shared read-ahead cache deferred"
     }
   },
   "playKeyStatus": "Native private LG SDL scancode 450 mapped to Play; separate Pause and normalised toggle retained; CX event capture pending",
@@ -89,36 +96,34 @@
     "userBufferCtrl": false,
     "overrideRemoved": true,
     "oldSavedOverrideIgnored": true,
-    "nativeVideoSource": "Geometry rebind on drawable resize; native buffer payload unchanged from upstream 1.0.0"
+    "nativeVideoSource": "Geometry rebind on drawable resize; native buffer payload unchanged from upstream 1.0.0",
+    "sharedReadAheadCacheAdded": false
   },
   "restoredOriginalFiles": [
     "src/screens/settings.c",
     "assets/i18n/de.json"
   ],
   "releaseChecks": {
-    "armBuild": "passed",
-    "cursor": "32 passed",
-    "foreground": "24 passed",
-    "regressionBeforeFix": "Prior app state/image resets never requested native window activation; size changes did not refresh logical input coordinates or existing plane rectangles",
-    "audio": "14 passed in 1.0.9; source unchanged",
-    "mediaKeys": "4 passed in 1.0.9; source unchanged",
-    "seek": "18 passed",
-    "mkvWorker": "9 passed in 1.0.9; source unchanged",
-    "transport": "12 passed in 1.0.9; source unchanged",
-    "package": "330 original entry modes and unchanged resources verified",
-    "geometry": "6 passed"
+    "armBuild": "passed; final cast hook API included",
+    "upstreamPipe": "11 real HTTP cases passed; complete/chunked/redirect/HEAD-GET, header isolation, cancellation, truncation, parallelism, overflow and real proxy bridge",
+    "subtitleDemandHashCast": "17 passed; default-Off, manual selection, stale results/retries, cast list ownership, hash memoization and explicit-vs-polled cast requests",
+    "transport": "12 passed for 1.0.14",
+    "mkvWorker": "9 passed for 1.0.14",
+    "audio": "14 passed for 1.0.14; no media decoding or TV playback emulation",
+    "retainedValidation": "84 cases from 1.0.13: 32 cursor, 24 foreground, 6 geometry, 18 seek and 4 media keys; their production behavior unchanged",
+    "package": "330 original data entry modes, unchanged resources/libraries, both original embedded key definitions and final binary verified"
   },
-  "furtherStreamingOptions": "On-demand subtitle reads selected and implemented in 1.0.8; other streaming changes remain proposals",
-  "binarySha256": "1d818b871a34fc31b037b5a017233a581809d00af6049bccb4c984755cfe84ef",
+  "furtherStreamingOptions": "Existing header-proxy reuse and subtitle/hash demand control implemented in 1.0.14; 8-MiB blocks/32-MiB shared read-ahead cache deferred; native buffering unchanged",
+  "binarySha256": "55bf3cb3a6bb0dc9d9eca4e3bd271163d7b511a131ab4be3a6a8856013e7d193",
   "seekScenariosPassed": 18,
   "mkvWorkerScenariosPassed": 9,
-  "totalRegressionScenariosPassed": 119,
+  "totalRegressionScenariosPassed": 147,
   "tvSeekValidated": false,
   "seekStrategy": "Native seek within the existing direct/HLS session; 350 ms debounce retained; reopen only the existing indexless continuous-TS path with pause/track preservation; no unconditional converter restart",
-  "subtitleStrategy": "Metadata/chapters retained; defer subtitle index; only requested text track near playhead; one temporary Auto-sync reference; stop off retries",
+  "subtitleStrategy": "Defer external lists/hash-dependent addon searches with default subtitles Off until explicit subtitle selection or explicit phone tracks?; automatic phone state polling is read-only. Off invalidates later answers/retries and auto-selection. Keep MKV audio/DV/chapter metadata, on-demand embedded text, temporary sync reference and known-hash memo.",
   "foregroundScenariosPassed": 24,
   "foregroundValidationScope": "24 controlled focus cases, 32 cursor image/input/backend cases, 6 geometry and 18 seek cases; actual CX SDL/compositor events not observed",
-  "scenariosRunForThisRelease": 80,
+  "scenariosRunForThisRelease": 63,
   "withdrawnForegroundPollingVersion": "1.0.9",
   "discardedCursorApproaches": [
     "Global cursor visibility/input switches from early releases",
@@ -128,5 +133,9 @@
   ],
   "geometryScenariosPassed": 6,
   "nativeActivationReference": "https://github.com/webosbrew/SDL-webOS/blob/8f8da641e197c97a48c46c065e9a69941657bc29/src/video/wayland/SDL_waylandwindow.c#L1617",
-  "playerSourceUnchangedFromVersion": "1.0.12"
+  "ipkBytes": 5381880,
+  "upstreamPipeScenariosPassed": 11,
+  "subtitleDemandHashCastScenariosPassed": 17,
+  "streamingValidationScope": "Local deterministic HTTP and actual subtitle/cast/player decisions; four ranges through existing local header proxy reused one upstream TCP connection. Actual source route and effect on CX buffering not observed. Native direct streams bypass the curl proxy.",
+  "httpRouteObservation": "Existing buffer stats distinguish direct / HTTP header proxy / conversion with headers; no stream URL or credential in new route log"
 }
