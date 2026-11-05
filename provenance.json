@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "f43c152b7ce732fa34d08bb82b50d520bc81e8c6",
+  "sourceCommit": "0a35b99c20537ed88b53cf5cebc47ddc0a4bc8eb",
   "upstream": "stremio-origin/webos",
   "upstreamCommit": "051818e55cf38caed42d597fbcb05bdd3fc5bbd9",
   "upstreamVersion": "1.0.0",
   "upstreamIpkSha256": "949d4eabafb7290258eae8ad9e405e7f8f31f4c030071039258f382ca7769a42",
-  "ipkSha256": "57f578dee55014bfd80337eb378a538b45951088364b09c1748b3eb2fc30c732",
+  "ipkSha256": "7caaece91193fcf29f4f9f5aca05296cd821ab607df55efc493abbccb6cd64be",
   "applicationPayloadChanges": [
     "stremioorigin",
     "appinfo.json (version only)"
@@ -16,7 +16,7 @@
     "src/platform/plat.h and mac/plat_mac.c: existing image interface; document SDL input-based return recovery",
     "src/platform/webos/plat_webos.c: one-shot SDL_RaiseWindow after confirmed return; loop guard; deferred SDL_SetCursor(NULL) redraw with own mouse focus; preserve raw pointer recovery",
     "src/platform/webos/video_webos.c: reapply existing video/crop rectangles when drawable dimensions change; no media reload; original native buffer payload",
-    "src/core/hproxy.c: stopped queued converter requests cannot execute",
+    "src/core/hproxy.c: retain stopped converter request guard; grow steady input ranges from 2 to 4 MiB and recent-byte ring from 4 to 8 MiB; reset to 512 KiB before uncached seeks, bridge short forward gaps/partial responses, clamp known EOF, reject cached/completed data after stop",
     "src/core/mkvsubs.c and mkvsubs.h: subtitle harvesting only on demand",
     "src/screens/player.c and player.h: existing seek and DTS decisions retained; defer external subtitle discovery while Off, cancel stale results/retries on Off, retain cast lists for their video, and report actual header-proxy route in existing buffer statistics",
     "src/core/subs.c: reuse known URL/size hashes for subsequent queries; supplied stream hash takes precedence; failed hash reads are not cached",
@@ -25,7 +25,7 @@
   "transportScenariosPassed": 12,
   "tvPlaybackValidated": false,
   "tvCursorValidated": false,
-  "version": "1.0.14",
+  "version": "1.0.15",
   "packagePermissionEntriesVerified": 330,
   "packagePermissionReference": "upstream 1.0.0",
   "tvStartupValidated": false,
@@ -79,6 +79,11 @@
       "streaming": "User reports recurrent buffering even at lower bitrates and without Dolby Vision or DTS conversion; cannot reproduce with original Stremio client",
       "subtitles": "User keeps subtitles off; background requests were not observable to the user",
       "authorization": "User approves first three streaming-plan steps: identify actual route, reuse existing proxy connections, defer unnecessary subtitle/hash reads; shared read-ahead cache deferred"
+    },
+    "after-1.0.14": {
+      "version": "Discussion after publication; no claim that installed TV version was separately confirmed",
+      "streaming": "User recalls live stats comparison in another work instance showing small approximately 2-MiB requests in Origin but not official Stremio; raw trace unavailable here",
+      "authorization": "User requests modest efficient data-fetch change; converter reader enlargement selected with native-direct limitation stated before implementation"
     }
   },
   "playKeyStatus": "Native private LG SDL scancode 450 mapped to Play; separate Pause and normalised toggle retained; CX event capture pending",
@@ -104,26 +109,25 @@
     "assets/i18n/de.json"
   ],
   "releaseChecks": {
-    "armBuild": "passed; final cast hook API included",
-    "upstreamPipe": "11 real HTTP cases passed; complete/chunked/redirect/HEAD-GET, header isolation, cancellation, truncation, parallelism, overflow and real proxy bridge",
-    "subtitleDemandHashCast": "17 passed; default-Off, manual selection, stale results/retries, cast list ownership, hash memoization and explicit-vs-polled cast requests",
-    "transport": "12 passed for 1.0.14",
-    "mkvWorker": "9 passed for 1.0.14",
-    "audio": "14 passed for 1.0.14; no media decoding or TV playback emulation",
-    "retainedValidation": "84 cases from 1.0.13: 32 cursor, 24 foreground, 6 geometry, 18 seek and 4 media keys; their production behavior unchanged",
+    "armBuild": "passed",
+    "converterReader": "12 real-HTTP cases plus old-reader comparison; steady/bridge/seek/backward/wrap/forward/partial/EOF/stop/retry/error",
+    "transport": "12 passed for 1.0.15",
+    "seek": "18 passed for 1.0.15",
+    "audio": "14 passed for 1.0.15; track decisions controlled, no real media decoding",
+    "retainedValidation": "103 earlier scenarios: 32 cursor, 24 focus, 6 geometry, 4 media keys, 9 MKV, 17 subtitle/hash/cast, 11 proxy; related production behavior unchanged",
     "package": "330 original data entry modes, unchanged resources/libraries, both original embedded key definitions and final binary verified"
   },
-  "furtherStreamingOptions": "Existing header-proxy reuse and subtitle/hash demand control implemented in 1.0.14; 8-MiB blocks/32-MiB shared read-ahead cache deferred; native buffering unchanged",
-  "binarySha256": "55bf3cb3a6bb0dc9d9eca4e3bd271163d7b511a131ab4be3a6a8856013e7d193",
+  "furtherStreamingOptions": "Converter input enlarged moderately to 4 MiB in 1.0.15; 8 MiB recent-byte ring. Existing header-proxy reuse and subtitle/hash demand control retained. Native direct fetch strategy and 8/32-MiB shared prefetch architecture remain separate; no native buffer threshold override.",
+  "binarySha256": "270aea9e04109895f7e2507d45e2fe6166b8abfd64fa3b0f7ac753be2fb48e94",
   "seekScenariosPassed": 18,
   "mkvWorkerScenariosPassed": 9,
-  "totalRegressionScenariosPassed": 147,
+  "totalRegressionScenariosPassed": 159,
   "tvSeekValidated": false,
   "seekStrategy": "Native seek within the existing direct/HLS session; 350 ms debounce retained; reopen only the existing indexless continuous-TS path with pause/track preservation; no unconditional converter restart",
   "subtitleStrategy": "Defer external lists/hash-dependent addon searches with default subtitles Off until explicit subtitle selection or explicit phone tracks?; automatic phone state polling is read-only. Off invalidates later answers/retries and auto-selection. Keep MKV audio/DV/chapter metadata, on-demand embedded text, temporary sync reference and known-hash memo.",
   "foregroundScenariosPassed": 24,
   "foregroundValidationScope": "24 controlled focus cases, 32 cursor image/input/backend cases, 6 geometry and 18 seek cases; actual CX SDL/compositor events not observed",
-  "scenariosRunForThisRelease": 63,
+  "scenariosRunForThisRelease": 56,
   "withdrawnForegroundPollingVersion": "1.0.9",
   "discardedCursorApproaches": [
     "Global cursor visibility/input switches from early releases",
@@ -133,9 +137,31 @@
   ],
   "geometryScenariosPassed": 6,
   "nativeActivationReference": "https://github.com/webosbrew/SDL-webOS/blob/8f8da641e197c97a48c46c065e9a69941657bc29/src/video/wayland/SDL_waylandwindow.c#L1617",
-  "ipkBytes": 5381880,
+  "ipkBytes": 5382024,
   "upstreamPipeScenariosPassed": 11,
   "subtitleDemandHashCastScenariosPassed": 17,
-  "streamingValidationScope": "Local deterministic HTTP and actual subtitle/cast/player decisions; four ranges through existing local header proxy reused one upstream TCP connection. Actual source route and effect on CX buffering not observed. Native direct streams bypass the curl proxy.",
-  "httpRouteObservation": "Existing buffer stats distinguish direct / HTTP header proxy / conversion with headers; no stream URL or credential in new route log"
+  "streamingValidationScope": "Real local converter input including existing header bridge and exact comparison against 1.0.14; 32 MiB needed 19 -> 11 requests. Actual CX buffering effect not measured. Native direct streams bypass this reader and are unchanged.",
+  "httpRouteObservation": "Existing buffer stats distinguish direct / HTTP header proxy / conversion with headers; no stream URL or credential in new route log",
+  "converterReaderScenariosPassed": 12,
+  "converterReaderPolicy": {
+    "startupBytes": 524288,
+    "sequentialBytes": 4194304,
+    "recentRingBytes": 8388608,
+    "ringPlusIncomingPayloadBytes": 12582912,
+    "fetchMode": "synchronous on cache miss; no new prefetch thread or proxy",
+    "timeoutMs": 15000,
+    "nativeDirectFetchChanged": false,
+    "tvPerformanceValidated": false
+  },
+  "converterReaderComparison": {
+    "sourceBytesRead": 33554432,
+    "previousVersion": "1.0.14",
+    "previousRequestCount": 19,
+    "requestCount": 11,
+    "upstreamConnectionsEach": 1,
+    "byteExact": true,
+    "headerProxyAlsoVerified": true,
+    "scope": "local deterministic HTTP; no TV decoding or throughput benchmark"
+  },
+  "playerSourceUnchangedFromVersion": "1.0.14"
 }
