@@ -124,7 +124,7 @@ static struct {
   int extTry, embKnown, embWaitOver; double extRetryAt, embWaitAt;
   /* the stream as its addon gave it (headers, group, file facts); the subtitles addons installed for this video, the
      language chosen in their tab */
-  Stream st; int nSubAddons; char subLang[24]; unsigned ytTok;
+  Stream st; int nSubAddons, headerProxy, subListsWanted, castSubList; char subLang[24]; unsigned ytTok;
   /* the addons' subtitles (the stream's own, then each subtitles addon's), apart from the built-in list in ext */
   SubEntry *adx; int nAdx, adxLoading, adxTry; double adxRetryAt; unsigned adxReq;
   /* tray */ struct { int kind; /* 0 none 1 eps 2 src 3 aud 4 subs 5 epsrc */ char tabs[40][48]; int ntabs, tab, seasonList[40], season; int zone; /* 0 row 1 tabs 2 cols */ TItem row[MAXROW]; int n, idx, onBtn; TCol cols[4]; int ncols, c, r[4]; char title[300], epvid[80]; int backIdx, backTab; Mo open, openA; float ox, oy; Mo rowX, tabsX, colY[4], ringX, ringY, ringA, plY[4], plA[4]; float ringW, ringH; int loading; int armed; } tray;
@@ -288,7 +288,9 @@ static void emb_label(int i, char *out, size_t cap) {
 static void sub_begin(void) { SL.tok++; SL.at = now_(); SL.checkAt = 0; SL.wait = 1; SL.tv = SL.mkv = SL.failed = SL.shown = SL.retry = SL.ready = 0; }
 static void sub_reset(void) { unsigned t = SL.tok + 1; memset(&SL, 0, sizeof SL); SL.tok = t; memset(embKind, 0, sizeof embKind); }
 static int tv_has_text(int n) { VidTrack t[24]; int k = video_text_tracks(t, 24); for (int i = 0; i < k; i++) if (t[i].idx == n) return 1; return 0; }
-static void subs_off(void) { sync_stop(0); snprintf(P.curSub, sizeof P.curSub, "off"); subs_free(P.cues, P.ncues); P.cues = NULL; P.ncues = 0; sub_begin(); SL.wait = 0; video_select_text(-1); if (mkv) mkv_select(mkv, -1); fprintf(stderr, "[subs] off\n"); refresh_tray(4); }
+static void subs_off(void) { sync_stop(0); snprintf(P.curSub, sizeof P.curSub, "off"); subs_free(P.cues, P.ncues); P.cues = NULL; P.ncues = 0; sub_begin(); SL.wait = 0; video_select_text(-1); if (mkv) mkv_select(mkv, -1);
+  P.autoSubDone = 1; P.subListsWanted = 0; P.subReq++; P.adxReq++; P.extRetryAt = P.adxRetryAt = 0; P.extLoading = P.adxLoading = 0;
+  fprintf(stderr, "[subs] off\n"); refresh_tray(4); }
 static void set_ext_sub(int list, const SubEntry *e);
 static void on_sub_cues(int status_, Cue *cues, int n, void *ud) {
   if (!P.open || (unsigned)(uintptr_t)ud != SL.tok || strncmp(P.curSub, "ext:", 4)) { subs_free(cues, n); return; } /* another choice since */
@@ -370,22 +372,28 @@ static void cc_toggle(void) {
 }
 /* the built-in OpenSubtitles list; no answer: asked again 15, 30 and 45 s later */
 static void on_subs(SubEntry *subs, int n, int ok, void *ud) {
-  if (!P.open || (unsigned)(uintptr_t)ud != P.subReq) { free(subs); return; }
+  if (!P.open || !P.subListsWanted || (unsigned)(uintptr_t)ud != P.subReq) { free(subs); return; }
   if (!ok && P.extTry < 3) { free(subs); P.extRetryAt = now_() + (P.extTry + 1) * 15; return; }
   free(P.ext); P.ext = subs; P.nExt = n; P.extLoading = 0; if (n) auto_sub(); refresh_tray(4);
 }
 /* the addons' lists (the stream's own, every subtitles addon's): each answer replaces the list with all that came so
    far; nothing from anyone: asked again 15, 30 and 45 s later */
 static void on_adx(SubEntry *subs, int n, int final, int ok, void *ud) {
-  if (!P.open || (unsigned)(uintptr_t)ud != P.adxReq) { free(subs); return; }
+  if (!P.open || !P.subListsWanted || (unsigned)(uintptr_t)ud != P.adxReq) { free(subs); return; }
   if (final && !ok && !n && P.adxTry < 3 && P.nSubAddons) { free(subs); P.adxRetryAt = now_() + (P.adxTry + 1) * 15; return; }
   free(P.adx); P.adx = subs; P.nAdx = n; P.adxLoading = !final; if (n) auto_sub(); refresh_tray(4);
 }
 static int hashable(const char *u) { return !strncmp(u, "http", 4) && !strstr(u, ".m3u8"); }
 static char artName[256], artPoster[512], artBg[512], artLogo[512]; /* the next play's title and pictures as handed over (a phone's) */
 static SubEntry castSubs[16]; static int castSubsN = -1; /* the next play's subtitles as a phone sent them (-1: none sent) */
+static void take_cast_subs(void) {
+  if (castSubsN < 0) return;
+  SubEntry *list = calloc(16, sizeof *list);
+  if (list) { memcpy(list, castSubs, sizeof castSubs); free(P.ext); P.ext = list; P.nExt = castSubsN; P.castSubList = 1; }
+  castSubsN = -1; /* consume for this stream even when its subtitle search is deferred */
+}
 static void load_ext_subs(int n) { if (!P.type[0] || !P.vid[0] || P.isTrailer) return; P.extLoading = 1;
-  if (castSubsN >= 0) { int k = castSubsN; castSubsN = -1; SubEntry *l = calloc(16, sizeof *l); memcpy(l, castSubs, sizeof castSubs); P.subReq++; on_subs(l, k, 1, (void *)(uintptr_t)P.subReq); return; } /* cast: the phone's own list */
+  if (P.castSubList) { P.extLoading = 0; auto_sub(); return; } /* local metadata, no HTTP request */
   if (getenv("SB_PLAY_SUBS")) { SubEntry *l = calloc(16, sizeof *l); int k = 0; char b[4096]; snprintf(b, sizeof b, "%s", getenv("SB_PLAY_SUBS")); /* development: "url,url,..." as the external list */
     for (char *u = strtok(b, ","); u && k < 16; u = strtok(NULL, ",")) { snprintf(l[k].lang, sizeof l[k].lang, "eng"); snprintf(l[k].name, sizeof l[k].name, "English"); snprintf(l[k].url, sizeof l[k].url, "%s", u); l[k].n = k + 1; l[k].from = SUB_FALLBACK; k++; }
     P.subReq++; on_subs(l, k, 1, (void *)(uintptr_t)P.subReq); return; }
@@ -397,6 +405,11 @@ static void load_addon_subs(int n) { if (!P.type[0] || !P.vid[0] || P.isTrailer 
   SubEntry *own = NULL; int nown = sb_stream_subs(&P.st, &own);
   if (!P.nSubAddons && !nown) { free(own); return; } /* nobody to ask */
   P.adxLoading = 1; subs_find(&q, own, nown, on_adx, (void *)(uintptr_t)P.adxReq); free(own); }
+static void request_sub_lists(int explicit) {
+  if (P.subListsWanted || (!explicit && !*want_sub())) return;
+  P.subListsWanted = 1;
+  load_ext_subs(0); load_addon_subs(0);
+}
 /* the file's subtitle tracks: read from the stream itself when it is a Matroska file (named, styled, delayed like the
    others: listed as soon as its head is read, their lines follow); else the ones the TV's pipeline reports, which it
    draws itself (their numbers are the same: the order among the file's subtitle tracks). Asked every second until
@@ -1263,7 +1276,7 @@ static void open_tray(int kind) {
   if (kind != 2 && kind != 5) srcs_free(); else { mo_set(&SR.y, 0); mo_set(&SR.plA, 0); }
   P.mode = 2; memset(&P.tray.row, 0, sizeof P.tray.row); P.tray.kind = kind; P.tray.idx = -1; P.tray.zone = 0; P.tray.onBtn = 0; P.tray.n = 0; P.tray.ntabs = 0;
   if (kind == 1) P.tray.season = season_of(P.vid);
-  if (kind == 4) { load_emb_tracks(); P.tray.tab = subTab; P.tray.zone = 1; } /* the subtitles open on their tabs (kept when there are any) */
+  if (kind == 4) { request_sub_lists(1); load_emb_tracks(); P.tray.tab = subTab; P.tray.zone = 1; } /* the subtitles open on their tabs (kept when there are any) */
   tm_reset(); TM.quiet = 1; render_tray(1); TM.quiet = 0;
   tray_origin();
   /* it starts small at its button and grows (the closing motion is set by the classes, see css()) */
@@ -1484,7 +1497,7 @@ static void start_video(void) {
   if (!P.isHls && !P.isTrailer && !strncmp(P.url, "http", 4)) { static unsigned szTok; P.sizeTok = ++szTok; net_size(P.url, on_size, (void *)(uintptr_t)P.sizeTok); } /* asked once per stream */
   asssubs_close(); if (mkv) { mkv_close(mkv); mkv = NULL; }
   if (!P.isHls && !P.isTrailer && !strncmp(P.url, "http", 4)) mkv = mkv_open(P.url, P.startAt > 0 ? P.startAt : 0, P.isP2p); /* not Matroska: it gives up after one small read */
-  load_ext_subs(0); load_addon_subs(0); load_emb_tracks();
+  take_cast_subs(); request_sub_lists(0); load_emb_tracks();
 }
 static char nextAlt[SB_URL_MAX];
 void player_fallback(const char *url) { snprintf(nextAlt, sizeof nextAlt, "%s", url ? url : ""); }
@@ -1569,7 +1582,8 @@ static void play_stream(const Stream *s, const char *vid, double startAt) {
   else trSubsN = 0;
   trNextN = 0;
   P.st = *s; snprintf(P.url, sizeof P.url, "%s", s->url); snprintf(P.alt, sizeof P.alt, "%s", nextAlt); nextAlt[0] = 0;
-  if ((s->hdrs[0] || s->rhdrs[0]) && !strncmp(s->url, "http", 4)) { hproxy_url(s->url, s->hdrs, s->rhdrs, P.url, sizeof P.url); fprintf(stderr, "[player] the stream wants its own headers: through %s\n", P.url); } /* every request for it carries them */
+  if ((s->hdrs[0] || s->rhdrs[0]) && !strncmp(s->url, "http", 4)) P.headerProxy = hproxy_url(s->url, s->hdrs, s->rhdrs, P.url, sizeof P.url); /* every request carries the required headers */
+  fprintf(stderr, "[player] HTTP route: %s\n", P.headerProxy ? "local header proxy" : "source URL");
   char info[700]; sb_stream_info(s, info, sizeof info); snprintf(P.sname, sizeof P.sname, "%s", info); snprintf(P.saddon, sizeof P.saddon, "%s", s->addon);
   if (!P.isTrailer && strcmp(P.type, "other")) sb_remember_stream(P.id, P.vid, s); /* the torrent itself, resolved again next time */
   if (!strncmp(P.url, "ytid:", 5)) { /* a YouTube video: found as the trailers are, behind the title art */
@@ -1643,8 +1657,9 @@ void player_cast(int cmd, double pos) {
 }
 /* the subtitles and audio as the trays list them, for a phone: ids it hands back as they are ("off", "emb:<track>",
    "ext1:<n>" the stream's and OpenSubtitles', "ext2:<n>" the addons', audio "<track>" or "conv:<n>" a converted one) */
-char *player_cast_tracks(void) {
+char *player_cast_tracks(int requested) {
   if (!P.open || P.closing) return NULL;
+  if (requested) request_sub_lists(1); /* automatic phone state polling must not start a search */
   cJSON *j = cJSON_CreateObject(), *sl = cJSON_AddArrayToObject(j, "subs"), *al = cJSON_AddArrayToObject(j, "audio"); char id[48], lb[200];
   cJSON_AddStringToObject(j, "t", "tracks");
   for (int i = 0; i < P.nEmb; i++) { cJSON *o = cJSON_CreateObject(); snprintf(id, sizeof id, "emb:%d", P.emb[i].idx); emb_label(i, lb, sizeof lb);
@@ -1857,7 +1872,7 @@ void player_tick(float dt) {
   if (P.dts.deferUntil) dts_defer_tick();
   if (vs == VID_ERROR && !P.failed && P.started && P.isP2p && !P.p2pRetried && p2p_moved_recently()) { /* the torrent's storage moved (a USB drive pulled out): the same stream once more, same moment */
     P.p2pRetried = 1; P.startAt = P.lastPos > 0 ? P.lastPos : 0; P.didResume = 0; P.live = 0; fprintf(stderr, "[player] stream error after the torrent storage moved: again at %.0f s\n", P.startAt); video_load(P.url); vs = video_state(); }
-  if (vs == VID_ERROR && !P.failed && P.started) { if (P.alt[0] && !P.altTried) { P.altTried = 1; fprintf(stderr, "[player] error, the fallback URL\n"); video_load(P.alt); } else { if (!P.errAt) P.errAt = now_(); if (!P.sizeTok || P.sizeAns || now_() - P.errAt > 4) fail(fail_reason()); } } /* the first URL failed: the same file the other way; the reason waits for the server's answer (4 s at most) */
+  if (vs == VID_ERROR && !P.failed && P.started) { if (P.alt[0] && !P.altTried) { P.altTried = 1; P.headerProxy = 0; fprintf(stderr, "[player] error, the fallback URL\n"); video_load(P.alt); } else { if (!P.errAt) P.errAt = now_(); if (!P.sizeTok || P.sizeAns || now_() - P.errAt > 4) fail(fail_reason()); } } /* the first URL failed: the same file the other way; the reason waits for the server's answer (4 s at most) */
   if (P.nx.tok && !P.nx.done && now_() >= P.nx.until) nx_finish();
   if (P.metaRetryAt && now_() >= P.metaRetryAt) { P.metaRetryAt = 0; if (!P.next.has || !P.videos) ask_meta(); }
   if (P.extRetryAt && now_() >= P.extRetryAt) { P.extRetryAt = 0; load_ext_subs(P.extTry + 1); }
@@ -2440,7 +2455,7 @@ int player_nerd_lines(char (*out)[120], int max) {
   if (n < max) { VidTrack a[16]; int na = video_audio_tracks(a, 16); const VidTrack *c = P.curAud >= 0 && P.curAud < na ? &a[P.curAud] : NULL; char ch[16] = "";
     if (c && c->channels > 0) snprintf(ch, sizeof ch, " · %d ch", c->channels);
     snprintf(out[n++], 120, "audio  %s%s%s", c && c->codec[0] ? c->codec : "not reported yet", ch, P.dts.conv ? " · converted to AC3 here" : ""); }
-  if (n < max) snprintf(out[n++], 120, "buffer  %.0f s ahead  ·  %s", buf > 0 ? buf : 0, P.dts.conv ? "local conversion" : P.isP2p ? "torrent" : P.isHls ? "HLS" : "direct");
+  if (n < max) snprintf(out[n++], 120, "buffer  %.0f s ahead  ·  %s", buf > 0 ? buf : 0, P.dts.conv ? (P.headerProxy ? "conversion / headers" : "local conversion") : P.headerProxy ? "HTTP header proxy" : P.isP2p ? "torrent" : P.isHls ? "HLS" : "direct");
   if (n < max && P.isP2p) { char pl[96]; if (p2p_peer_line(pl, sizeof pl)) snprintf(out[n++], 120, "p2p  %s", pl); }
   if (n < max) { double am = asssubs_render_ms(); if (!strcmp(P.curSub, "off")) snprintf(out[n++], 120, "subtitles  off"); else if (asssubs_on()) snprintf(out[n++], 120, "subtitles  styled, %.0f ms a render", am); else if (P.curSub[0]) snprintf(out[n++], 120, "subtitles  plain"); }
   return n;

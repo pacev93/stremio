@@ -33,7 +33,7 @@ typedef struct {
   void (*connected)(int phones);                             /* authorised phones now (0: none) */
   void (*account)(const char *authKey, const char *userJson); /* the phone's account ("" signed out), after ready and on a change */
   void (*pref)(const char *key, const char *value);         /* one of the phone's settings (only known keys reach it) */
-  char *(*tracks)(void);                                     /* the "tracks" message now (malloc'd JSON), NULL when nothing plays */
+  char *(*tracks)(int requested);                            /* requested: explicit tracks?, 0 for automatic state polling */
   void (*track)(const char *kind, const char *id, int ms);   /* the phone's pick: "sub", "audio", "subdelay" */
 } CastHooks;
 

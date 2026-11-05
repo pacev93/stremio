@@ -1,6 +1,53 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.13
+## Aktueller Stand: 1.0.14
+
+1.0.14 setzt die freigegebenen ersten drei Schritte des Streaming-Plans um.
+Der Wiedergabepfad wird an der tatsächlichen Header-Proxy-Übernahme festgemacht
+und in der vorhandenen Puffer-Statistik unterschieden: `direct`,
+`HTTP header proxy` bzw. `conversion / headers`. Ein sicherer Logeintrag nennt
+nur die Route, keine URL oder Zugangsdaten. Welchen Pfad die konkrete Quelle
+auf dem TV verwendet, wurde aus dieser Umgebung nicht beobachtet.
+
+Der vorhandene Header-Proxy verwendet nun Serververbindungen wieder. Ein
+Pool speichert bis zu vier exklusiv geleaste curl-Sitzungen, getrennt nach
+Quell-URL und Anfrageheadern außer dem wechselnden Range. Optionen und
+Callback-Zeiger werden zwischen Anfragen vollständig zurückgesetzt, ohne den
+Verbindungscache zu verlieren. HEAD/GET, Range und Authentifizierungsheader
+können dadurch nicht von der vorherigen Anfrage übrig bleiben. Abgebrochene
+oder unvollständige Transfers werden verworfen. Sind alle vier Sitzungen
+belegt, verwendet ein zusätzlicher Abruf vorübergehend eine eigene Verbindung;
+ein neuer Seek wartet nicht hinter alten lang laufenden Antworten. Es gibt
+keine globale Sperre während des Netzwerk-I/O und keinen Vorlade-Datencache.
+Die lokale HTTP-Seite behält ihre bisherige Connection-close-Semantik.
+
+Bei ausgeschalteter Standard-Untertitelsprache werden externe Listen und
+hashabhängige Addon-Suchen erst beim bewussten Öffnen der Untertitelauswahl
+(auch bei einer ausdrücklichen Track-Abfrage vom Telefon) angefragt. Automatische
+Spurstatus-Abfragen eines verbundenen Telefons starten diese Suche nicht. Bereits
+vom Telefon mitgelieferte Untertitellisten bleiben ohne Netzwerkabruf für das
+richtige Video erhalten. Manuelles Ausschalten verwirft spätere Antworten und
+geplante Listen-Wiederholungen und verhindert erneutes automatisches Aktivieren.
+Vorhandene Hashes derselben URL/Dateigröße werden für weitere Suchen genutzt;
+ein vom Stream gelieferter Hash hat Vorrang. Die MKV-Audio-/DV-/Kapitel-Abfrage
+und der seit 1.0.8 bedarfsgerechte eingebettete Textleser bleiben erhalten.
+
+Die Proxy-Optimierung betrifft nur Quellen, die diesen bestehenden Pfad
+benutzen. Eine native Direktquelle wird weiterhin vom LG-Mediendienst selbst
+geladen. Wiederkehrende Aussetzer solcher Quellen sind damit nicht als gelöst
+nachgewiesen. Es gibt keinen neuen Read-Ahead-Proxy, keinen 8/32-MiB-Cache,
+keine geänderten nativen Bufferprofile und keinen neuen Startparameter-Versuch.
+
+Neu geprüft: elf echte HTTP-Proxyfälle (einschließlich vier Ranges über eine
+Serververbindung durch den vollständigen lokalen Proxy), 17 Untertitel-Demand/
+Hash-/Telefon-Fälle sowie die bisherigen zwölf Range-, neun MKV- und 14 DTS-Policyfälle.
+63 Szenarien wurden für dieses Release ausgeführt; insgesamt 147 mit den 84
+unveränderten Cursor-/Fokus-/Geometrie-/Seek-/Medientasten-Prüfungen aus 1.0.13.
+ARM-Build erfolgreich; das finale Paket enthält die Originalressourcen und
+mitgelieferten Schlüssel, alle 330 Daten-Eintragsrechte entsprechen dem Original.
+Wiedergabe und Wirkung auf dem CX bleiben am TV zu bestätigen.
+
+## Änderungen bis 1.0.13
 
 1.0.13 setzt den freigegebenen neuen Ansatz um: Nach einer expliziten App-/
 Fenster-Deaktivierung wird einmal eine native Fensteraktivierung angefordert.
@@ -157,7 +204,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.13 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.14 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -423,6 +470,8 @@ jedes Archiv-Eintrags aus dem Original übernommen. Die Paketprüfung verwirft
 ```sh
 source /workspace/stremio-env/activate.sh
 python3 tests/net/run.py --sdl-include "$SDK/usr/include"
+python3 tests/net/pipe.py --sdl-include "$SDK/usr/include"
+python3 tests/subtitles/run.py
 DISPLAY=:97 python3 tests/pointer/run.py --sdl-include "$SDK/usr/include"
 python3 tests/pointer/focus.py --sdl-include "$SDK/usr/include"
 python3 tests/pointer/geometry.py

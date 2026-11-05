@@ -42,7 +42,9 @@ int      net_stream_sync(const char *url, int timeoutMs, NetSink sink, void *ud)
 
 /* A GET (head: a HEAD) passed on as it arrives, with extra request headers (one "Name: value" per line): hs gets each
    header line of every hop (a status line starts a hop), sink the body as for net_stream_sync; it gives up after
-   stallSec seconds without a byte. Worker threads only. The HTTP status, 0 when it failed, -1 when the sink stopped it */
+   stallSec seconds without a byte. Worker threads only. Complete responses retain a bounded pool of upstream
+   connections; handles are leased exclusively and request options reset between uses. No file data is cached.
+   The HTTP status, 0 when it failed, -1 when the sink stopped it */
 typedef void (*NetHdrSink)(const char *line, void *ud);
 int      net_pipe_sync(const char *url, const char *headers, int head, NetHdrSink hs, NetSink sink, void *ud, int stallSec);
 

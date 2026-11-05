@@ -19,6 +19,7 @@ static CURLcode (*f_easy_setopt)(CURL *, CURLoption, ...);
 static CURLcode (*f_easy_perform)(CURL *);
 static CURLcode (*f_easy_getinfo)(CURL *, CURLINFO, ...);
 static void (*f_easy_cleanup)(CURL *);
+static void (*f_easy_reset)(CURL *);
 static struct curl_slist *(*f_slist_append)(struct curl_slist *, const char *);
 static void (*f_slist_free_all)(struct curl_slist *);
 static CURLcode (*f_global_init)(long);
@@ -29,7 +30,7 @@ static const char *ua(void) { static char u[96]; if (!u[0]) { const char *d = pl
 static int resolve(void) {
 #ifdef SB_MAC
   f_easy_init = curl_easy_init; f_easy_setopt = curl_easy_setopt; f_easy_perform = curl_easy_perform; f_easy_getinfo = curl_easy_getinfo;
-  f_easy_cleanup = curl_easy_cleanup; f_slist_append = curl_slist_append; f_slist_free_all = curl_slist_free_all; f_global_init = curl_global_init;
+  f_easy_cleanup = curl_easy_cleanup; f_easy_reset = curl_easy_reset; f_slist_append = curl_slist_append; f_slist_free_all = curl_slist_free_all; f_global_init = curl_global_init;
   return 1;
 #else
   static const char *names[] = { "libcurl.so.5", "libcurl.so.4", "libcurl.so", NULL };
@@ -37,7 +38,7 @@ static int resolve(void) {
   if (!h) { fprintf(stderr, "[net] no libcurl: %s\n", dlerror()); return 0; }
 #define L(v, n) do { *(void **)(&v) = dlsym(h, n); if (!v) { fprintf(stderr, "[net] missing %s\n", n); return 0; } } while (0)
   L(f_easy_init, "curl_easy_init"); L(f_easy_setopt, "curl_easy_setopt"); L(f_easy_perform, "curl_easy_perform"); L(f_easy_getinfo, "curl_easy_getinfo");
-  L(f_easy_cleanup, "curl_easy_cleanup"); L(f_slist_append, "curl_slist_append"); L(f_slist_free_all, "curl_slist_free_all"); L(f_global_init, "curl_global_init");
+  L(f_easy_cleanup, "curl_easy_cleanup"); L(f_easy_reset, "curl_easy_reset"); L(f_slist_append, "curl_slist_append"); L(f_slist_free_all, "curl_slist_free_all"); L(f_global_init, "curl_global_init");
 #undef L
   return 1;
 #endif
@@ -291,25 +292,91 @@ int net_stream_sync(const char *url, int timeoutMs, NetSink sink, void *ud) {
 }
 
 /* ---- a GET passed through as it arrives, with the caller's headers (the stream proxy: worker threads only) ---------- */
+/* Keep remote connections, not response bodies. Each lease owns its easy handle exclusively;
+   four cached sessions serve playback and metadata. Overflow transfers stay independent,
+   so a new seek never waits behind long-running old responses.
+   URL and non-Range request headers isolate credentials and server sessions. */
+#define PIPE_SLOTS 4
+typedef struct { CURL *c; char *url, *key; unsigned long age; int busy, temporary; } PipeSlot;
+static PipeSlot pipeSlots[PIPE_SLOTS];
+static pthread_mutex_t pipeMu = PTHREAD_MUTEX_INITIALIZER;
+static unsigned long pipeAge;
+static char *pipe_key(const char *headers) {
+  const char *p = headers ? headers : ""; char *key = malloc(strlen(p) + 2); if (!key) return NULL;
+  size_t n = 0;
+  while (*p) {
+    const char *end = strchr(p, '\n'); size_t len = end ? (size_t)(end - p) : strlen(p);
+    if (len && strncasecmp(p, "Range:", 6)) { memcpy(key + n, p, len); n += len; key[n++] = '\n'; }
+    if (!end) break; p = end + 1;
+  }
+  key[n] = 0; return key;
+}
+static PipeSlot *pipe_take(const char *url, const char *key) {
+  pthread_mutex_lock(&pipeMu);
+  PipeSlot *slot = NULL;
+  for (int i = 0; i < PIPE_SLOTS; i++) if (!pipeSlots[i].busy) {
+    PipeSlot *s = &pipeSlots[i];
+    if (s->c && !strcmp(s->url, url) && !strcmp(s->key, key)) { slot = s; break; }
+    if (!slot || !s->c || (slot->c && s->age < slot->age)) slot = s;
+  }
+  if (slot) slot->busy = 1;
+  pthread_mutex_unlock(&pipeMu);
+  if (!slot) { /* retain the old proxy's concurrency when every cached session is occupied */
+    slot = calloc(1, sizeof *slot); if (!slot) return NULL;
+    slot->temporary = slot->busy = 1;
+  }
+  int same = slot->c && !strcmp(slot->url, url) && !strcmp(slot->key, key);
+  if (!same) {
+    if (slot->c) f_easy_cleanup(slot->c);
+    free(slot->url); free(slot->key); slot->url = strdup(url); slot->key = strdup(key);
+    slot->c = slot->url && slot->key ? f_easy_init() : NULL;
+  }
+  return slot;
+}
+static void pipe_release(PipeSlot *slot, int complete) {
+  /* Reset callbacks/header pointers before their stack/slist storage expires. curl_easy_reset
+     retains the connection cache, but clears NOBODY, Range and all other per-request options. */
+  if (slot->c) {
+    f_easy_reset(slot->c);
+    if (!complete || slot->temporary) { f_easy_cleanup(slot->c); slot->c = NULL; }
+  }
+  if (!slot->c) { free(slot->url); free(slot->key); slot->url = slot->key = NULL; }
+  if (slot->temporary) { free(slot); return; }
+  pthread_mutex_lock(&pipeMu); slot->age = ++pipeAge; slot->busy = 0; pthread_mutex_unlock(&pipeMu);
+}
 typedef struct { NetHdrSink hs; NetSink sink; void *ud; int stopped; } PipeCtx;
 static size_t pipe_hdr(char *p, size_t s, size_t n, void *ud) { PipeCtx *x = ud; size_t l = s * n; char line[1024]; size_t k = l < sizeof line - 1 ? l : sizeof line - 1; memcpy(line, p, k); line[k] = 0; x->hs(line, x->ud); return l; }
 static size_t pipe_data(char *p, size_t s, size_t n, void *ud) { PipeCtx *x = ud; if (!x->sink((const unsigned char *)p, s * n, x->ud)) { x->stopped = 1; return 0; } return s * n; }
 static int pipe_poll(void *ud, curl_off_t a, curl_off_t b, curl_off_t c, curl_off_t d) { (void)a; (void)b; (void)c; (void)d; PipeCtx *x = ud; if (!x->sink(NULL, 0, x->ud)) { x->stopped = 1; return 1; } return 0; }
 int net_pipe_sync(const char *url, const char *headers, int head, NetHdrSink hs, NetSink sink, void *ud, int stallSec) {
   if (!f_easy_init && !resolve()) return 0;
-  CURL *c = f_easy_init(); if (!c) return 0;
+  char *key = pipe_key(headers); if (!key) return 0;
+  PipeSlot *slot = pipe_take(url, key); free(key);
+  if (!slot) return 0;
+  CURL *c = slot->c; if (!c) { pipe_release(slot, 0); return 0; }
   PipeCtx x = { hs, sink, ud, 0 }; struct curl_slist *sl = NULL;
-  char *hd = headers ? strdup(headers) : NULL; for (char *h = hd, *nl; h && *h; h = nl ? nl + 1 : NULL) { nl = strchr(h, '\n'); if (nl) *nl = 0; if (*h) sl = f_slist_append(sl, h); }
+  char *hd = headers ? strdup(headers) : NULL;
+  if (headers && !hd) { pipe_release(slot, 0); return 0; }
+  for (char *h = hd, *nl; h && *h; h = nl ? nl + 1 : NULL) {
+    nl = strchr(h, '\n'); if (nl) *nl = 0;
+    if (*h) {
+      struct curl_slist *next = f_slist_append(sl, h);
+      if (!next) { if (sl) f_slist_free_all(sl); free(hd); pipe_release(slot, 0); return 0; }
+      sl = next;
+    }
+  }
   f_easy_setopt(c, CURLOPT_URL, url); f_easy_setopt(c, CURLOPT_HEADERFUNCTION, pipe_hdr); f_easy_setopt(c, CURLOPT_HEADERDATA, &x);
   f_easy_setopt(c, CURLOPT_WRITEFUNCTION, pipe_data); f_easy_setopt(c, CURLOPT_WRITEDATA, &x);
   f_easy_setopt(c, CURLOPT_XFERINFOFUNCTION, pipe_poll); f_easy_setopt(c, CURLOPT_XFERINFODATA, &x); f_easy_setopt(c, CURLOPT_NOPROGRESS, 0L);
   f_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L); f_easy_setopt(c, CURLOPT_MAXREDIRS, 8L); f_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
   f_easy_setopt(c, CURLOPT_CONNECTTIMEOUT_MS, 10000L); f_easy_setopt(c, CURLOPT_LOW_SPEED_LIMIT, 1L); f_easy_setopt(c, CURLOPT_LOW_SPEED_TIME, (long)(stallSec > 0 ? stallSec : 60));
   f_easy_setopt(c, CURLOPT_USERAGENT, "Mozilla/5.0 (Web0S; Linux) StremioOrigin"); /* a User-Agent among the headers replaces it */
+  f_easy_setopt(c, CURLOPT_TCP_KEEPALIVE, 1L); f_easy_setopt(c, CURLOPT_MAXCONNECTS, 2L);
   if (head) f_easy_setopt(c, CURLOPT_NOBODY, 1L);
   if (sl) f_easy_setopt(c, CURLOPT_HTTPHEADER, sl);
   if (caPath[0]) f_easy_setopt(c, CURLOPT_CAINFO, caPath);
-  CURLcode rc = f_easy_perform(c); long code = 0; f_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &code); f_easy_cleanup(c); if (sl) f_slist_free_all(sl); free(hd);
+  CURLcode rc = f_easy_perform(c); long code = 0; f_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &code);
+  pipe_release(slot, rc == CURLE_OK && !x.stopped); if (sl) f_slist_free_all(sl); free(hd);
   if (x.stopped) return -1;
   return rc == CURLE_OK ? (int)code : 0;
 }

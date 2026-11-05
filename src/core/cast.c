@@ -147,7 +147,7 @@ static void on_msg(Client *c, const char *s) {
       const cJSON *pr = cJSON_GetObjectItemCaseSensitive(j, "prefs");
       for (int i = 0; i < (int)(sizeof K / sizeof *K); i++) { const cJSON *v = cJSON_GetObjectItemCaseSensitive(pr, K[i]); if (cJSON_IsString(v) && strlen(v->valuestring) < 64 && H.pref) H.pref(K[i], v->valuestring); } }
     else if (!strcmp(t, "sub") || !strcmp(t, "audio")) { if (H.track) { H.track(t, js(j, "id"), 0); c->trHash = 0; } } /* (the new choice told back at once) */
-    else if (!strcmp(t, "tracks?")) { char *tr = H.tracks ? H.tracks() : NULL; /* asked: the tracks now, or empty lists when nothing plays */
+    else if (!strcmp(t, "tracks?")) { char *tr = H.tracks ? H.tracks(1) : NULL; /* asked: the tracks now, or empty lists when nothing plays */
       const char *empty = "{\"t\":\"tracks\",\"subs\":[],\"audio\":[],\"sub\":\"off\",\"aud\":\"\"}"; const char *m = tr ? tr : empty; send_frame(c, 1, m, (int)strlen(m)); c->trHash = tr ? fnv(tr) : 0; free(tr); }
     else if (!strcmp(t, "subdelay")) { if (H.track) { H.track(t, "", (int)jn(j, "ms")); c->trHash = 0; } }
     else if (!strcmp(t, "key")) { static const char *K[] = { "up", "down", "left", "right", "ok", "back", "home", "play", "pause" }; const char *k = js(j, "k");
@@ -199,7 +199,7 @@ static void frames(Client *c) {
 static void tracks(double now) {
   static double at; if (now - at < 0.3 || !H.tracks) return; at = now; char *s = NULL; unsigned h = 0;
   for (int i = 0; i < MAXC; i++) { Client *c = &C[i]; if (c->fd < 0 || !c->auth) continue;
-    if (!s) { s = H.tracks(); if (!s) break; h = fnv(s); }
+    if (!s) { s = H.tracks(0); if (!s) break; h = fnv(s); }
     if (c->trHash != h) { c->trHash = h; send_frame(c, 1, s, (int)strlen(s)); } }
   free(s);
 }

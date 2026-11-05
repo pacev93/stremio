@@ -284,10 +284,24 @@ static void find_answer(SubJob *j) {
   else fprintf(stderr, "[subs] %s: %d subtitles\n", f->src[j->src].name, j->ngot);
   find_add(f, j->got, j->ngot); find_deliver(f);
 }
-/* the hash (when the file can be read in ranges), then one request per source */
+static void find_hash(SubQuery *q) {
+  if (q->hash[0]) return; /* a supplied hash takes precedence */
+  char cached[24]; double cachedSize = 0;
+  if (subs_hash_of(q->url, cached, &cachedSize) && (q->size <= 0 || q->size == cachedSize)) {
+    snprintf(q->hash, sizeof q->hash, "%s", cached); q->size = cachedSize; return;
+  }
+  if (q->hashable) {
+    double size = q->size; char hash[17];
+    if (subs_os_hash(q->url, &size, hash)) {
+      snprintf(q->hash, sizeof q->hash, "%s", hash); q->size = size;
+      hash_keep(q->url, q->hash, q->size);
+    }
+  }
+}
+/* the hash (when needed and not already known), then one request per source */
 static void *find_main(void *a) { plat_thread_background(5);
   FindQ *f = a; SubQuery *q = &f->q;
-  if (!q->hash[0] && q->hashable) { double sz = q->size; char h[17]; if (subs_os_hash(q->url, &sz, h)) { snprintf(q->hash, sizeof q->hash, "%s", h); q->size = sz; } }
+  find_hash(q);
   if (q->hash[0]) hash_keep(q->url, q->hash, q->size);
   char ex[600] = "", n[32]; if (q->hash[0]) addon_extra_add(ex, sizeof ex, "videoHash", q->hash);
   if (q->size > 0) { snprintf(n, sizeof n, "%.0f", q->size); addon_extra_add(ex, sizeof ex, "videoSize", n); }
