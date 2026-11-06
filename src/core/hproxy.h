@@ -17,4 +17,7 @@ int  hls_conv_available(void);                                  /* the converter
 void hls_conv_start(const char *url, int audioOrd, int flags);  /* audioOrd among the file's audio tracks (-1 the first DTS / TrueHD) */
 int  hls_conv_poll(char *url, size_t cap, char *why, size_t whyCap, HlsConvInfo *info); /* 0 opening, 1 ready (url to load), -1 failed (why) */
 void hls_conv_stop(void);
+/* An actual native seek in this converter's indexed playlist: stop current work and invalidate queued segments.
+   Other URLs (including native direct files and the existing indexless TS path) are left alone. */
+void hls_conv_seek(const char *mediaUrl);
 #endif

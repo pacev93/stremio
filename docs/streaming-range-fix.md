@@ -1,6 +1,52 @@
 # Streaming-, Cursor- und Audio-Korrekturen
 
-## Aktueller Stand: 1.0.15
+## Aktueller Stand: 1.0.16
+
+Der Nutzer bestätigt beim betroffenen Stream `local conversion` bzw.
+`conversion / headers`. Damit ist der eigene Konverter beteiligt; die Anzeige
+unterscheidet weiterhin nicht zwischen HLS und indexloser TS-Ausgabe. Die
+Änderung setzt deshalb an dessen Anfrage-/Seek-Steuerung an, ohne einen
+nativen Startparameter oder eine Puffergrenze zu verändern.
+
+Bisher durfte nur Segment N+1 warten, während N erzeugt wurde. Jede andere
+Anfrage, auch N+2 oder ein wiederholter Abruf, setzte das Stoppsignal für N.
+Das ist mit kontrollierten parallelen Anfragen an `conv_serve` auf 1.0.15
+reproduzierbar. Nun warten HLS-Segmentanfragen unabhängig von ihrer Nummer,
+ohne dadurch die laufende Ausgabe abzubrechen. Der vorhandene Run-Mutex lässt
+weiterhin nur einen Konverterlauf zugleich zu; es gibt keinen neuen Daten-
+oder Segmentcache und keine neue Anforderung an die Reihenfolge der Anfragen.
+
+Ein tatsächlicher nativer Seek in genau die aktive eigene HLS-Playlist setzt
+das Stoppsignal und erhöht eine Anfragegeneration. Wartende Anfragen aus der
+vorigen Generation dürfen danach nicht mehr laufen oder ein neueres Stoppsignal
+zurücksetzen. Generation, Dead-Prüfung und Freigabe des neuen Laufs werden
+unter derselben Sperre entschieden. Der Hook sitzt nach dem bestehenden
+350-ms-Seek-Debounce unmittelbar vor dem nativen Seek-Aufruf und umfasst auch
+Resume, Kapitel-/Intro-Sprünge und die Telefonbedienung. Andere Medien-URLs
+werden ignoriert; der Konverter und die native Mediensitzung werden für
+indexierte Seeks nicht neu gestartet.
+
+Beim bereits bestehenden indexlosen `all.ts`-Pfad ersetzt eine neue Anfrage
+weiterhin die vorige. Neu wird zusätzlich überholte wartende Arbeit verworfen,
+so dass von mehreren wartenden Positionswechseln nur die neueste Anfrage
+ausgeführt wird. Dieser Sonderpfad benutzt weiterhin seine bestehende native
+Neuöffnung, weil kein HLS-Index für einen nativen Seek vorhanden ist.
+Ein laufender synchroner Netzwerk-/Socket-Aufruf kann das Stoppsignal wie
+bisher erst nach Rückkehr bzw. an seinem nächsten Prüfschritt beachten.
+
+Dreizehn kontrollierte Nebenläufigkeitsfälle prüfen Vorabrufe, Wiederholungen,
+Positionswechsel, wiederholte Seeks, Stop, HEAD/Playlist, fremde URLs, TS-
+Ersetzung, einen Seek während des Antwort-Headers und verzögerte TS-Header. Der Vorabruf-Fall
+schlägt mit 1.0.15 fehl und besteht mit 1.0.16. Zusätzlich bestanden 20 Seek-,
+zwölf echte HTTP-Dateileser- und 14 DTS-Policyfälle: 59 ausgeführte Szenarien,
+insgesamt 174 mit den 115 unveränderten früheren Prüfungen. ARM-Build erfolgreich;
+das finale IPK enthält die Originalressourcen und Schlüssel, und alle 330
+Daten-Eintragsrechte entsprechen dem Original.
+Das konkrete Anfragemuster und die Wirkung auf Buffering am CX sind noch
+nicht am TV aufgezeichnet bzw. bestätigt. Cursor, native Bufferautomatik,
+4-MiB-Konverter-Abrufe und DTS-Auswahl bleiben erhalten.
+
+## Änderungen in 1.0.15
 
 Der bestehende Konverter-Dateileser vergrößert seine fortlaufenden HTTP-Ranges
 von 2 auf 4 MiB. Öffnen und nicht im Rücklesepuffer liegende größere Sprünge
@@ -243,7 +289,7 @@ Homebrew-Repository:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 ```
 
-1.0.15 als Update installieren, ohne die App vorher zu deinstallieren.
+1.0.16 als Update installieren, ohne die App vorher zu deinstallieren.
 Die bestehende Repository-Adresse bleibt erhalten.
 Der eingebaute Updater bleibt unverändert und verweist auf das Originalprojekt.
 
@@ -511,6 +557,7 @@ source /workspace/stremio-env/activate.sh
 python3 tests/net/run.py --sdl-include "$SDK/usr/include"
 python3 tests/net/pipe.py --sdl-include "$SDK/usr/include"
 python3 tests/reader/run.py --sdl-include "$SDK/usr/include"
+python3 tests/converter/run.py --sdl-include "$SDK/usr/include"
 python3 tests/subtitles/run.py
 DISPLAY=:97 python3 tests/pointer/run.py --sdl-include "$SDK/usr/include"
 python3 tests/pointer/focus.py --sdl-include "$SDK/usr/include"

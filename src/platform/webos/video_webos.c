@@ -22,6 +22,7 @@
    - the TV's screen saver does not count the GL-composed video as video: its request is answered
      "no" while a film plays. */
 #include "core/video.h"
+#include "core/hproxy.h"
 #include "platform/plat.h"
 #include <SDL2/SDL.h>
 #include <dlfcn.h>
@@ -334,7 +335,8 @@ void video_pause(void) { pthread_mutex_lock(&mu); S.pausedByUs = 1; S.st = VID_P
 void video_seek(double sec) { if (sec < 0) sec = 0; pthread_mutex_lock(&mu); S.pos = sec; posAt = SDL_GetTicks() / 1000.0; hold_on(); pthread_mutex_unlock(&mu); seekTarget = sec; seekAt = SDL_GetTicks() + 350; }
 static void seek_native(double sec) {
   seekWait = 1; seekWaitAt = SDL_GetTicks(); char mid[64]; pthread_mutex_lock(&mu); snprintf(mid, sizeof mid, "%s", S.mediaId); pthread_mutex_unlock(&mu);
-  if (!mid[0]) return; char b[160]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\",\"position\":%d}", mid, (int)(sec * 1000)); call("seek", b, NULL, NULL);
+  if (!mid[0]) return; hls_conv_seek(url); /* only the matching indexed converter; after seek debounce */
+  char b[160]; snprintf(b, sizeof b, "{\"mediaId\":\"%s\",\"position\":%d}", mid, (int)(sec * 1000)); call("seek", b, NULL, NULL);
 }
 static void seek_now(double sec) {
   if (timed.on) { /* An indexless TS has no native seek: reopen only this existing special path. */

@@ -123,7 +123,7 @@ static int rss_mb(void) {
   FILE *f = fopen("/proc/self/statm", "r"); long a = 0, b = 0; if (f) { if (fscanf(f, "%ld %ld", &a, &b) != 2) b = 0; fclose(f); } return (int)(b * (sysconf(_SC_PAGESIZE) / 1024) / 1024);
 #endif
 }
-typedef struct Conv { unsigned id; int ord, flags, state, refs, running; volatile int stop, dead; char err[160]; Reader rd; SbdSrc *src; sbd_info info; pthread_mutex_t runMu; double t0; } Conv;
+typedef struct Conv { unsigned id, epoch; int ord, flags, state, refs, running; volatile int stop, dead; char err[160]; Reader rd; SbdSrc *src; sbd_info info; pthread_mutex_t runMu; double t0; } Conv;
 static Conv *conv; static unsigned convN; /* the current one, under mu */
 static void conv_unref(Conv *c) { /* the last holder frees it (the run in progress, the opening thread, the current slot) */
   pthread_mutex_lock(&mu); int last = --c->refs == 0; pthread_mutex_unlock(&mu); if (!last) return;
@@ -166,11 +166,20 @@ void hls_conv_stop(void) {
   pthread_mutex_lock(&mu); Conv *c = conv; conv = NULL; if (c) { c->dead = 1; c->stop = 1; } pthread_mutex_unlock(&mu);
   if (c) { fprintf(stderr, "[dts] conversion ended (%d MB)\n", rss_mb()); conv_unref(c); }
 }
+void hls_conv_seek(const char *mediaUrl) {
+  pthread_mutex_lock(&mu); Conv *c = conv;
+  if (c && c->state > 0 && c->info.indexed && mediaUrl) {
+    char expected[256]; snprintf(expected, sizeof expected, "http://127.0.0.1:%d/h/%u/index.m3u8", port, c->id);
+    if (!strcmp(mediaUrl, expected)) { c->epoch++; c->stop = 1; }
+  }
+  pthread_mutex_unlock(&mu);
+}
 static int fd_write(void *ud, const unsigned char *p, int n) { /* one HTTP chunk per write (the muxer's 32 KB) */
   int fd = *(int *)ud; char h[16]; int hl = snprintf(h, sizeof h, "%x\r\n", n);
   return send_all(fd, h, (size_t)hl) && send_all(fd, p, (size_t)n) && send_all(fd, "\r\n", 2) ? n : -1; }
 static void conv_serve(int fd, unsigned id, const char *path, int head) {
   Conv *c = conv_get(id); int seg = -1; double from = 0; const char *nm = strchr(path + 3, '/');
+  unsigned epoch = 0; if (c) { pthread_mutex_lock(&mu); epoch = c->epoch; pthread_mutex_unlock(&mu); }
   if (!c || c->state <= 0 || !nm) { const char *b = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"; send_all(fd, b, strlen(b)); if (c) conv_unref(c); return; }
   nm++;
   if (!strncmp(nm, "index.m3u8", 10)) { /* the keyframe index as a VOD playlist */
@@ -187,16 +196,19 @@ static void conv_serve(int fd, unsigned id, const char *path, int head) {
   /* the length is not known before the segment is made: sent in chunks, the last one saying it is complete */
   const char *h = "HTTP/1.1 200 OK\r\nContent-Type: video/mp2t\r\nCache-Control: no-cache\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n";
   if (head) { send_all(fd, h, strlen(h)); conv_unref(c); return; }
-  /* the segment after the one being made waits for it (players fetch the next one ahead) and then continues it; any
-     other stops the run in progress (a seek, or the same segment asked again) */
+  /* All HLS requests may be prefetches or retries, even a second segment ahead or a duplicate. Only an explicit
+     native seek stops indexed work. The indexless stream still replaces its previous request. */
   /* (the head goes out at once: a player opening the next segment while still reading this one waits for it, and this
      one's run would wait for that player) */
+  if (seg < 0) { pthread_mutex_lock(&mu); epoch = ++c->epoch; pthread_mutex_unlock(&mu); }
   if (!send_all(fd, h, strlen(h))) { conv_unref(c); return; }
-  pthread_mutex_lock(&mu); int follows = seg >= 0 && c->running >= 0 && seg == c->running + 1; if (!follows) c->stop = 1; pthread_mutex_unlock(&mu);
+  if (seg < 0) { pthread_mutex_lock(&mu); if (epoch == c->epoch) c->stop = 1; pthread_mutex_unlock(&mu); }
   pthread_mutex_lock(&c->runMu);
-  if (c->dead) { pthread_mutex_unlock(&c->runMu); conv_unref(c); return; } /* a queued request from before a seek must not run */
-  c->stop = 0;
-  pthread_mutex_lock(&mu); c->running = seg; pthread_mutex_unlock(&mu);
+  pthread_mutex_lock(&mu);
+  int stale = c->dead || epoch != c->epoch;
+  if (!stale) { c->stop = 0; c->running = seg; }
+  pthread_mutex_unlock(&mu);
+  if (stale) { pthread_mutex_unlock(&c->runMu); conv_unref(c); return; } /* never clear a newer seek/stop */
   {
     sbd_stats st; char err[160] = ""; c->rd.stop = &c->stop;
     int r = D->run(c->src, seg, from, fd_write, &fd, &c->stop, &st, err, sizeof err);

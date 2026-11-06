@@ -24,6 +24,9 @@ static Uint32 fake_ticks(void) { return ticks; }
 static int loads, seeks, pauses, audioSelections, textSelections;
 static double target;
 static char address[9000];
+static int converterSeeks;
+static char converterUrl[4096];
+void hls_conv_seek(const char *u) { converterSeeks++;snprintf(converterUrl,sizeof converterUrl,"%s",u); }
 static const char *payload(LSMessage *m) { return (const char *)m; }
 static void emit(const char *p) { on_event(bus,(LSMessage *)p,(void *)(uintptr_t)session); }
 static bool dispatch(LSHandle *h, const char *uri, const char *p, LSFilterFunc cb,
@@ -48,7 +51,14 @@ int main(int argc,char **argv) {
   snprintf(S.mediaId,sizeof S.mediaId,"old-session");
   S.loaded=S.playing=S.live=1; S.st=VID_PLAYING; S.pos=120; posAt=10;
   S.curAud=2; S.curTxt=-1; cropSX=12;
-  if (!strcmp(argv[1],"forward")) {
+  if (!strcmp(argv[1],"converter-debounce")) {
+    snprintf(url,sizeof url,"http://127.0.0.1:123/h/42/index.m3u8");
+    video_seek(80);ticks+=100;video_seek(90);ticks+=349;video_pump();
+    assert(!converterSeeks && !seeks);ticks++;video_pump();
+    assert(converterSeeks==1 && !strcmp(converterUrl,url) && seeks==1 && target==90 && !loads);
+  } else if (!strcmp(argv[1],"empty-session")) {
+    S.mediaId[0]=0;video_seek(90);ticks+=350;video_pump();assert(!converterSeeks && !seeks && !loads);
+  } else if (!strcmp(argv[1],"forward")) {
     video_seek(150); ticks+=350; video_pump(); assert(!loads && seeks==1 && target==150);
   } else if (!strcmp(argv[1],"backward")) {
     video_seek(90); ticks+=349; video_pump(); assert(!loads && !seeks);
@@ -178,7 +188,7 @@ def main():
         tmp = Path(folder)
         includes = sdl_include(tmp,args.sdl_include)
         suites = [
-            ('native',NATIVE,('forward','backward','small-backward','repeated','coalesce','paused','continuous','continuous-paused','play-cancels-pause','beginning','new-source')),
+            ('native',NATIVE,('forward','backward','small-backward','repeated','coalesce','paused','continuous','continuous-paused','play-cancels-pause','beginning','new-source','converter-debounce','empty-session')),
             ('core',CORE+function(source,'commit_seek')+CORE_TEST,
              ('dts','dv-copy','no-index','paused','beginning','direct')),
             ('queued',QUEUED,('',)),
@@ -191,7 +201,7 @@ def main():
                             '-Wl,--gc-sections','-pthread','-ldl','-lm','-o',str(exe)],check=True)
             for case in cases:
                 subprocess.run([str(exe),*([case] if case else [])],check=True,timeout=10)
-        print('18 seek scenarios passed; native decoder behavior still requires TV verification')
+        print('20 seek scenarios passed; native decoder behavior still requires TV verification')
 
 
 if __name__ == '__main__':
