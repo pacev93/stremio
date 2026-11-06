@@ -1,32 +1,34 @@
-# Update 1.0.15
+# Update 1.0.16
 
 Bestehende Homebrew-Adresse:
 https://raw.githubusercontent.com/pacev93/stremio/homebrew/apps.json
 
 Origin vollständig schließen und als Update installieren. Keine Deinstallation.
 
-Der vorhandene DTS-/DV-Konverter holt fortlaufende Dateibereiche mit 4 statt
-2 MiB. Start und größere Sprünge beginnen mit 512 KiB. Sein Rücklesering hält
-8 statt 4 MiB zuletzt gelesene Bytes. Ein neuer 4-MiB-Block verdrängt damit
-nicht den gesamten Rücklesevorrat. Ring plus eingehende Antwort belegen bis
-zu 12 statt 6 MiB Nutzdaten, zuzüglich bestehender Bibliotheks-/Decoderbelegung.
+HLS-Segmentanfragen dürfen mehrere Segmente vorausliegen oder Wiederholungen
+sein. Sie brechen die laufende Konverterausgabe nicht mehr ab. Bisher setzte
+bereits das übernächste angefragte Segment ein Stoppsignal für die aktuelle
+Ausgabe; diese Entscheidung ist auf 1.0.15 lokal reproduziert.
 
-Kurze Vorwärtssprünge erreichen ihr Ziel auch über mehrere verkürzte Antworten.
-Große Sprünge setzen die Abrufgröße wieder herunter; bekannte Dateigrenzen
-begrenzen den letzten Abruf. Gestoppte Arbeit liefert keine alten Daten aus.
-Eine laufende HTTP-Anfrage behält die bisherige Frist von 15 Sekunden.
+Ein tatsächlicher nativer Seek in die aktive eigene Playlist stoppt die alte
+Arbeit und verwirft wartende Anfragen von davor. Das Signal kommt erst nach
+dem bisherigen Seek-Debounce. Alte Anfragen können ein neueres Stoppsignal
+nicht zurücksetzen. Indexierte Seeks starten weder Konverter noch native
+Mediensitzung neu. Andere Medien-URLs werden ignoriert.
 
-Kein neuer Vorlade-Proxy oder Vorladethread. Die Änderung wirkt auf den
-Konverter-Dateileser, direkt und mit dem bestehenden Header-Proxy. Native
-Direktwiedergabe lädt weiterhin der LG-Mediendienst; ihre Abrufgröße ändert
-sich hierdurch nicht. Cursor, Untertitelstrategie, DTS-Auswahl, Seek-Sitzung
-und native Pufferautomatik bleiben erhalten.
+Im vorhandenen indexlosen TS-Sonderpfad ersetzt eine neue Anfrage weiterhin
+die alte. Bei mehreren wartenden Anfragen läuft nur die neueste, auch wenn
+Antwortheader verzögert fertig werden. Die dort nötige zeitbasierte native
+Neuöffnung bleibt erhalten.
 
-56 Prüfungen bestanden: zwölf Leser-, zwölf Range-, 18 Seek- und 14 DTS-Fälle.
-Zusätzlicher Vergleich: dieselben 32 MiB bytegenau mit elf statt 19 Anfragen,
-jeweils über eine Serververbindung. Das ist kein TV-Durchsatzbenchmark.
-ARM-Build und finales Paket geprüft; 330 Original-Dateirechte, Ressourcen,
-Bibliotheken und beide mitgelieferten Schlüssel erhalten. Die Wirkung auf
-CX-Buffering bleibt am TV zu bestätigen.
+Kein neuer Datencache oder Vorlade-Proxy. 4-MiB-Dateiabrufe und 8-MiB-Rücklesering
+bleiben erhalten, ebenso Cursor, DTS-Auswahl und native Pufferautomatik.
+Stoppsignale werden wie bisher an den vorhandenen Prüfpunkten beachtet;
+laufende synchrone Netzwerk-/Socket-Aufrufe haben keinen neuen Sofortabbruch.
 
-Details: https://github.com/pacev93/stremio/tree/0a35b99c20537ed88b53cf5cebc47ddc0a4bc8eb/docs/streaming-range-fix.md
+59 Szenarien bestanden: 13 Nebenläufigkeits-, 20 Seek-, zwölf echte HTTP-Leser-
+und 14 DTS-Policyfälle. ARM-Build und finales Paket erfolgreich geprüft:
+330 Original-Dateirechte, Ressourcen, Bibliotheken und mitgelieferte Schlüssel
+erhalten. Die Wirkung auf die Hänger des CX bleibt am TV zu bestätigen.
+
+Details: https://github.com/pacev93/stremio/tree/2c1f9e17c9037bd7661b1b0957cf4361090e7b9a/docs/streaming-range-fix.md

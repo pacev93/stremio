@@ -12,20 +12,20 @@
       "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
       "pool": "main",
       "manifestUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/manifest.json",
-      "shortDescription": "1.0.15: Weniger HTTP-Anfragen im Konverter durch 4-MiB-Folgeabrufe; kleine Seek-Probes.",
+      "shortDescription": "1.0.16: Konverter-Ausgabe bei HLS-Vorabrufen erhalten; veraltete Seek-Anfragen verwerfen.",
       "fullDescriptionUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/api/apps/tv.stremioorigin.app/full_description.html",
       "manifest": {
         "id": "tv.stremioorigin.app",
-        "version": "1.0.15",
+        "version": "1.0.16",
         "type": "native",
         "title": "Stremio Origin",
-        "appDescription": "1.0.15: Konverter-Eingang mit 4-MiB-Folgeabrufen und 8-MiB-Rücklesering; kleine Start-/Seek-Abrufe und robuste Teilantworten. Native Direktwiedergabe und Pufferautomatik bleiben erhalten.",
+        "appDescription": "1.0.16: HLS-Vorabrufe und Wiederholungen brechen die laufende Konverterausgabe nicht mehr ab. Echte Seeks verwerfen alte wartende Arbeit; bei durchgehendem TS zählt die neueste Positionsanfrage. Native Pufferautomatik bleibt erhalten.",
         "iconUri": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/icon.png",
-        "sourceUrl": "https://github.com/pacev93/stremio/tree/0a35b99c20537ed88b53cf5cebc47ddc0a4bc8eb",
+        "sourceUrl": "https://github.com/pacev93/stremio/tree/2c1f9e17c9037bd7661b1b0957cf4361090e7b9a",
         "rootRequired": false,
-        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.15_arm.ipk",
+        "ipkUrl": "https://raw.githubusercontent.com/pacev93/stremio/homebrew/tv.stremioorigin.app_1.0.16_arm.ipk",
         "ipkHash": {
-          "sha256": "7caaece91193fcf29f4f9f5aca05296cd821ab607df55efc493abbccb6cd64be"
+          "sha256": "6bcf332f749f85c9f7db22389dd78076b1b52c54e7e4d25157e6ea31abb3e5a3"
         }
       }
     }
